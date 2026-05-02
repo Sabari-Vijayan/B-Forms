@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Globe } from "lucide-react";
@@ -18,16 +17,17 @@ export default function PublicForm() {
   const { slug } = useParams();
   const { data: form, isLoading, error } = useGetPublicForm(slug as string, { query: { enabled: !!slug } });
   const submitForm = useSubmitForm();
-  
+
   const [selectedLang, setSelectedLang] = useState<string>("");
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [isSubmitted, setIsSubmitted] = useState(false);
 
   useEffect(() => {
     if (form && !selectedLang) {
-      // Default to browser language or original form language
-      const browserLang = navigator.language.split('-')[0];
-      if (form.supportedLanguages.includes(browserLang)) {
+      // Always include original language in the available set
+      const available = Array.from(new Set([form.originalLanguage, ...form.supportedLanguages]));
+      const browserLang = navigator.language.split("-")[0];
+      if (available.includes(browserLang)) {
         setSelectedLang(browserLang);
       } else {
         setSelectedLang(form.originalLanguage);
@@ -36,7 +36,11 @@ export default function PublicForm() {
   }, [form, selectedLang]);
 
   if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-muted/20"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted/20">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   if (error || !form) {
@@ -52,10 +56,13 @@ export default function PublicForm() {
     );
   }
 
+  // All languages the dropdown should offer — original is always present
+  const availableLanguages = Array.from(new Set([form.originalLanguage, ...form.supportedLanguages]));
+
   // Get translations for current language (fallback to original fields if not translated yet)
-  const currentTranslation = form.translations?.find(t => t.language === selectedLang);
-  const t = currentTranslation?.translationsJson as Record<string, string> || {};
-  
+  const currentTranslation = form.translations?.find((tr) => tr.language === selectedLang);
+  const t = (currentTranslation?.translationsJson as Record<string, string>) || {};
+
   const title = t.title || form.title;
   const description = t.description || form.description;
 
@@ -66,23 +73,23 @@ export default function PublicForm() {
         slug: slug as string,
         data: {
           respondentLanguage: selectedLang,
-          responses: formData
-        }
+          responses: formData,
+        },
       });
       setIsSubmitted(true);
       confetti({
         particleCount: 100,
         spread: 70,
         origin: { y: 0.6 },
-        colors: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444']
+        colors: ["#3b82f6", "#10b981", "#f59e0b", "#ef4444"],
       });
-    } catch (e) {
+    } catch {
       toast.error("Failed to submit form. Please try again.");
     }
   };
 
   const handleInputChange = (fieldId: string, value: any) => {
-    setFormData(prev => ({ ...prev, [fieldId]: value }));
+    setFormData((prev) => ({ ...prev, [fieldId]: value }));
   };
 
   if (isSubmitted) {
@@ -104,17 +111,19 @@ export default function PublicForm() {
   return (
     <div className="min-h-screen bg-muted/10 py-12 px-4">
       <div className="max-w-2xl mx-auto">
+        {/* Language selector — always shows original + all published languages */}
         <div className="flex justify-end mb-4">
           <div className="flex items-center gap-2 bg-background border rounded-md px-3 py-1.5 shadow-sm">
             <Globe className="w-4 h-4 text-muted-foreground" />
-            <select 
+            <select
               className="bg-transparent border-none text-sm outline-none cursor-pointer"
               value={selectedLang}
               onChange={(e) => setSelectedLang(e.target.value)}
             >
-              {form.supportedLanguages.map(code => (
+              {availableLanguages.map((code) => (
                 <option key={code} value={code}>
-                  {SUPPORTED_LANGUAGES.find(l => l.code === code)?.name || code}
+                  {SUPPORTED_LANGUAGES.find((l) => l.code === code)?.name || code}
+                  {code === form.originalLanguage ? " (Original)" : ""}
                 </option>
               ))}
             </select>
@@ -125,107 +134,133 @@ export default function PublicForm() {
           <form onSubmit={handleSubmit}>
             <CardHeader className="border-b pb-6">
               <CardTitle className="text-3xl font-bold">{title}</CardTitle>
-              {description && <CardDescription className="text-base mt-2 text-foreground/80">{description}</CardDescription>}
+              {description && (
+                <CardDescription className="text-base mt-2 text-foreground/80">{description}</CardDescription>
+              )}
             </CardHeader>
-            <CardContent className="space-y-8 pt-6">
-              {form.fields.sort((a, b) => a.orderIndex - b.orderIndex).map(field => {
-                const label = t[`field_${field.id}_label`] || field.label;
-                const placeholder = t[`field_${field.id}_placeholder`] || field.placeholder;
-                const options = field.optionsJson?.map((opt, i) => t[`field_${field.id}_option_${i}`] || opt) || [];
-                
-                return (
-                  <div key={field.id} className="space-y-3">
-                    <Label className="text-base font-medium flex gap-1">
-                      {label}
-                      {field.isRequired && <span className="text-destructive">*</span>}
-                    </Label>
-                    
-                    {field.fieldType === 'short_text' && (
-                      <Input 
-                        required={field.isRequired}
-                        placeholder={placeholder || ""}
-                        value={formData[field.id] || ""}
-                        onChange={(e) => handleInputChange(field.id, e.target.value)}
-                        className="bg-muted/30 focus:bg-background"
-                      />
-                    )}
-                    
-                    {field.fieldType === 'long_text' && (
-                      <Textarea 
-                        required={field.isRequired}
-                        placeholder={placeholder || ""}
-                        value={formData[field.id] || ""}
-                        onChange={(e) => handleInputChange(field.id, e.target.value)}
-                        className="bg-muted/30 focus:bg-background min-h-[100px]"
-                      />
-                    )}
-                    
-                    {field.fieldType === 'single_choice' && (
-                      <RadioGroup 
-                        required={field.isRequired}
-                        value={formData[field.id] || ""}
-                        onValueChange={(val) => handleInputChange(field.id, val)}
-                        className="space-y-2"
-                      >
-                        {options.map((opt, i) => (
-                          <div key={i} className="flex items-center space-x-3 bg-muted/20 p-3 rounded-lg border border-transparent hover:border-border transition-colors">
-                            <RadioGroupItem value={opt} id={`${field.id}-${i}`} />
-                            <Label htmlFor={`${field.id}-${i}`} className="font-normal cursor-pointer flex-1">{opt}</Label>
-                          </div>
-                        ))}
-                      </RadioGroup>
-                    )}
 
-                    {field.fieldType === 'multi_choice' && (
-                      <div className="space-y-2">
-                        {options.map((opt, i) => {
-                          const currentVals = formData[field.id] as string[] || [];
-                          const isChecked = currentVals.includes(opt);
-                          return (
-                            <div key={i} className="flex items-center space-x-3 bg-muted/20 p-3 rounded-lg border border-transparent hover:border-border transition-colors">
-                              <Checkbox 
-                                id={`${field.id}-${i}`} 
-                                checked={isChecked}
-                                onCheckedChange={(checked) => {
-                                  if (checked) {
-                                    handleInputChange(field.id, [...currentVals, opt]);
-                                  } else {
-                                    handleInputChange(field.id, currentVals.filter(v => v !== opt));
-                                  }
-                                }}
-                              />
-                              <Label htmlFor={`${field.id}-${i}`} className="font-normal cursor-pointer flex-1">{opt}</Label>
+            <CardContent className="space-y-8 pt-6">
+              {form.fields
+                .slice()
+                .sort((a, b) => a.orderIndex - b.orderIndex)
+                .map((field) => {
+                  const label = t[`field_${field.id}_label`] || field.label;
+                  const placeholder = t[`field_${field.id}_placeholder`] || field.placeholder;
+
+                  // Display labels for options come from translations; stored values use the
+                  // original option text so language switches don't invalidate selections.
+                  const originalOptions: string[] = field.optionsJson || [];
+                  const displayOptions = originalOptions.map(
+                    (orig, i) => t[`field_${field.id}_option_${i}`] || orig
+                  );
+
+                  return (
+                    <div key={field.id} className="space-y-3">
+                      <Label className="text-base font-medium flex gap-1">
+                        {label}
+                        {field.isRequired && <span className="text-destructive">*</span>}
+                      </Label>
+
+                      {field.fieldType === "short_text" && (
+                        <Input
+                          required={field.isRequired}
+                          placeholder={placeholder || ""}
+                          value={formData[field.id] || ""}
+                          onChange={(e) => handleInputChange(field.id, e.target.value)}
+                          className="bg-muted/30 focus:bg-background"
+                        />
+                      )}
+
+                      {field.fieldType === "long_text" && (
+                        <Textarea
+                          required={field.isRequired}
+                          placeholder={placeholder || ""}
+                          value={formData[field.id] || ""}
+                          onChange={(e) => handleInputChange(field.id, e.target.value)}
+                          className="bg-muted/30 focus:bg-background min-h-[100px]"
+                        />
+                      )}
+
+                      {field.fieldType === "single_choice" && (
+                        <RadioGroup
+                          required={field.isRequired}
+                          // stored value is always the original option text
+                          value={formData[field.id] || ""}
+                          onValueChange={(val) => handleInputChange(field.id, val)}
+                          className="space-y-2"
+                        >
+                          {originalOptions.map((orig, i) => (
+                            <div
+                              key={i}
+                              className="flex items-center space-x-3 bg-muted/20 p-3 rounded-lg border border-transparent hover:border-border transition-colors"
+                            >
+                              {/* value is the original text; label shows translated text */}
+                              <RadioGroupItem value={orig} id={`${field.id}-${i}`} />
+                              <Label htmlFor={`${field.id}-${i}`} className="font-normal cursor-pointer flex-1">
+                                {displayOptions[i]}
+                              </Label>
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                    
-                    {field.fieldType === 'email' && (
-                      <Input 
-                        type="email"
-                        required={field.isRequired}
-                        placeholder={placeholder || "name@example.com"}
-                        value={formData[field.id] || ""}
-                        onChange={(e) => handleInputChange(field.id, e.target.value)}
-                        className="bg-muted/30 focus:bg-background"
-                      />
-                    )}
-                    
-                    {field.fieldType === 'phone' && (
-                      <Input 
-                        type="tel"
-                        required={field.isRequired}
-                        placeholder={placeholder || ""}
-                        value={formData[field.id] || ""}
-                        onChange={(e) => handleInputChange(field.id, e.target.value)}
-                        className="bg-muted/30 focus:bg-background"
-                      />
-                    )}
-                  </div>
-                );
-              })}
+                          ))}
+                        </RadioGroup>
+                      )}
+
+                      {field.fieldType === "multi_choice" && (
+                        <div className="space-y-2">
+                          {originalOptions.map((orig, i) => {
+                            const currentVals = (formData[field.id] as string[]) || [];
+                            // checked state compares against original option text
+                            const isChecked = currentVals.includes(orig);
+                            return (
+                              <div
+                                key={i}
+                                className="flex items-center space-x-3 bg-muted/20 p-3 rounded-lg border border-transparent hover:border-border transition-colors"
+                              >
+                                <Checkbox
+                                  id={`${field.id}-${i}`}
+                                  checked={isChecked}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      handleInputChange(field.id, [...currentVals, orig]);
+                                    } else {
+                                      handleInputChange(field.id, currentVals.filter((v) => v !== orig));
+                                    }
+                                  }}
+                                />
+                                <Label htmlFor={`${field.id}-${i}`} className="font-normal cursor-pointer flex-1">
+                                  {displayOptions[i]}
+                                </Label>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {field.fieldType === "email" && (
+                        <Input
+                          type="email"
+                          required={field.isRequired}
+                          placeholder={placeholder || "name@example.com"}
+                          value={formData[field.id] || ""}
+                          onChange={(e) => handleInputChange(field.id, e.target.value)}
+                          className="bg-muted/30 focus:bg-background"
+                        />
+                      )}
+
+                      {field.fieldType === "phone" && (
+                        <Input
+                          type="tel"
+                          required={field.isRequired}
+                          placeholder={placeholder || ""}
+                          value={formData[field.id] || ""}
+                          onChange={(e) => handleInputChange(field.id, e.target.value)}
+                          className="bg-muted/30 focus:bg-background"
+                        />
+                      )}
+                    </div>
+                  );
+                })}
             </CardContent>
+
             <CardFooter className="bg-muted/10 p-6 border-t mt-6">
               <Button type="submit" size="lg" className="w-full md:w-auto" disabled={submitForm.isPending}>
                 {submitForm.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}

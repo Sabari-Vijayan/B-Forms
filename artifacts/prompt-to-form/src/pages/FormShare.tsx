@@ -22,10 +22,13 @@ export default function FormShare() {
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
   const [isPublishing, setIsPublishing] = useState(false);
 
-  // Initialize selected languages
+  // Initialize selected languages — always include the original language
   useState(() => {
     if (form && selectedLanguages.length === 0) {
-      setSelectedLanguages(form.supportedLanguages);
+      const langs = form.supportedLanguages.includes(form.originalLanguage)
+        ? form.supportedLanguages
+        : [form.originalLanguage, ...form.supportedLanguages];
+      setSelectedLanguages(langs);
     }
   });
 
