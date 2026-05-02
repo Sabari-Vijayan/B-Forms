@@ -94,6 +94,64 @@ export default function FormEditor() {
   const [supportedLanguages, setSupportedLanguages] = useState<string[]>([]);
   const [preferredLanguage, setPreferredLanguage] = useState<string>("");
 
+  // ── Field draft state ──────────────────────────────────────────────────────
+  type FieldDraft = { label: string; placeholder: string | null; isRequired: boolean; optionsJson: string[] | null };
+  const [fieldDrafts, setFieldDrafts] = useState<Record<string, FieldDraft>>({});
+  const [savingFieldId, setSavingFieldId] = useState<string | null>(null);
+
+  // Sync new fields into drafts (only initialise — never overwrite unsaved edits)
+  useEffect(() => {
+    if (!fields) return;
+    setFieldDrafts(prev => {
+      const next: Record<string, FieldDraft> = {};
+      for (const f of fields) {
+        next[f.id] = prev[f.id] ?? {
+          label: f.label,
+          placeholder: f.placeholder ?? null,
+          isRequired: f.isRequired,
+          optionsJson: f.optionsJson ?? null,
+        };
+      }
+      return next;
+    });
+  }, [fields]);
+
+  const patchDraft = (fieldId: string, updates: Partial<FieldDraft>) =>
+    setFieldDrafts(prev => ({ ...prev, [fieldId]: { ...prev[fieldId], ...updates } }));
+
+  const isDirty = (f: { id: string; label: string; placeholder?: string | null; isRequired: boolean; optionsJson?: string[] | null }) => {
+    const d = fieldDrafts[f.id];
+    if (!d) return false;
+    return d.label !== f.label ||
+      d.placeholder !== (f.placeholder ?? null) ||
+      d.isRequired !== f.isRequired ||
+      JSON.stringify(d.optionsJson) !== JSON.stringify(f.optionsJson ?? null);
+  };
+
+  const handleSaveField = async (fieldId: string) => {
+    const draft = fieldDrafts[fieldId];
+    if (!draft) return;
+    setSavingFieldId(fieldId);
+    try {
+      await updateField.mutateAsync({
+        id,        // form ID
+        fieldId,   // field ID
+        data: {
+          label: draft.label,
+          placeholder: draft.placeholder,
+          isRequired: draft.isRequired,
+          optionsJson: draft.optionsJson ?? undefined,
+        },
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/forms", id, "fields"] });
+      toast.success("Field saved");
+    } catch {
+      toast.error("Failed to save field");
+    } finally {
+      setSavingFieldId(null);
+    }
+  };
+
   // Init settings state
   useState(() => {
     if (form) {
@@ -154,20 +212,11 @@ export default function FormEditor() {
 
   const handleDeleteField = async (fieldId: string) => {
     try {
-      await deleteField.mutateAsync({ id: fieldId });
+      await deleteField.mutateAsync({ id, fieldId });
       toast.success("Field deleted");
       queryClient.invalidateQueries({ queryKey: ["/api/forms", id, "fields"] });
     } catch (e) {
       toast.error("Failed to delete field");
-    }
-  };
-
-  const handleUpdateField = async (fieldId: string, data: any) => {
-    try {
-      await updateField.mutateAsync({ id: fieldId, data });
-      queryClient.invalidateQueries({ queryKey: ["/api/forms", id, "fields"] });
-    } catch (e) {
-      toast.error("Failed to update field");
     }
   };
 
@@ -214,74 +263,115 @@ export default function FormEditor() {
           <TabsContent value="fields" className="mt-6 space-y-4">
             {fields?.map((field) => {
               const Icon = FIELD_ICONS[field.fieldType] || Type;
+              const draft = fieldDrafts[field.id];
+              const dirty = isDirty(field);
+              const isSaving = savingFieldId === field.id;
+              const opts = draft?.optionsJson ?? field.optionsJson ?? [];
+
               return (
-                <Card key={field.id} className="border-border shadow-sm group">
+                <Card key={field.id} className={`border-border shadow-sm group transition-colors ${dirty ? "border-foreground/40" : ""}`}>
                   <CardContent className="p-4 sm:p-6 flex gap-4">
                     <div className="mt-1 cursor-grab text-muted-foreground hover:text-foreground">
                       <GripVertical className="w-5 h-5" />
                     </div>
                     <div className="flex-1 space-y-4">
+                      {/* Label row */}
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1">
                           <Input
-                            value={field.label}
-                            onChange={(e) => handleUpdateField(field.id, { label: e.target.value })}
+                            value={draft?.label ?? field.label}
+                            onChange={(e) => patchDraft(field.id, { label: e.target.value })}
                             className="font-medium text-lg border-transparent hover:border-input focus:bg-background px-2 -ml-2"
                           />
                         </div>
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="capitalize flex items-center gap-1">
+                          <Badge variant="outline" className="capitalize flex items-center gap-1 shrink-0">
                             <Icon className="w-3 h-3" />
-                            {field.fieldType.replace('_', ' ')}
+                            {field.fieldType.replace(/_/g, ' ')}
                           </Badge>
-                          <Button variant="ghost" size="icon" className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleDeleteField(field.id)}>
+                          <Button
+                            variant="ghost" size="icon"
+                            className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => handleDeleteField(field.id)}
+                          >
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
                       </div>
 
-                      {field.placeholder !== null && (
+                      {/* Placeholder — show for text-type fields */}
+                      {(field.fieldType === 'short_text' || field.fieldType === 'long_text' || field.fieldType === 'email' || field.fieldType === 'phone') && (
                         <div>
+                          <Label className="text-xs text-muted-foreground uppercase tracking-wide mb-1 block">Placeholder</Label>
                           <Input
-                            value={field.placeholder || ""}
-                            onChange={(e) => handleUpdateField(field.id, { placeholder: e.target.value })}
+                            value={draft?.placeholder ?? field.placeholder ?? ""}
+                            onChange={(e) => patchDraft(field.id, { placeholder: e.target.value || null })}
                             placeholder="Placeholder text (optional)"
                             className="text-sm bg-muted/50"
                           />
                         </div>
                       )}
 
+                      {/* Options for choice fields */}
                       {(field.fieldType === 'single_choice' || field.fieldType === 'multi_choice') && (
-                        <div className="space-y-2 pl-2 border-l-2 border-primary/20">
-                          {field.optionsJson?.map((opt, i) => (
-                            <div key={i} className="flex items-center gap-2">
-                              <div className="w-4 h-4 rounded-full border border-primary/30 flex-shrink-0" />
-                              <Input
-                                value={opt}
-                                onChange={(e) => {
-                                  const newOpts = [...(field.optionsJson || [])];
-                                  newOpts[i] = e.target.value;
-                                  handleUpdateField(field.id, { optionsJson: newOpts });
-                                }}
-                                className="h-8 text-sm"
-                              />
-                            </div>
-                          ))}
-                          <Button variant="ghost" size="sm" onClick={() => {
-                             const newOpts = [...(field.optionsJson || []), `Option ${(field.optionsJson?.length || 0) + 1}`];
-                             handleUpdateField(field.id, { optionsJson: newOpts });
-                          }}>
-                            <Plus className="w-3 h-3 mr-1" /> Add Option
-                          </Button>
+                        <div className="space-y-2">
+                          <Label className="text-xs text-muted-foreground uppercase tracking-wide block">Options</Label>
+                          <div className="space-y-2 pl-2 border-l-2 border-border">
+                            {opts.map((opt, i) => (
+                              <div key={i} className="flex items-center gap-2">
+                                <div className="w-3 h-3 rounded-full border border-muted-foreground/40 flex-shrink-0" />
+                                <Input
+                                  value={opt}
+                                  onChange={(e) => {
+                                    const next = [...opts];
+                                    next[i] = e.target.value;
+                                    patchDraft(field.id, { optionsJson: next });
+                                  }}
+                                  className="h-8 text-sm"
+                                />
+                                <button
+                                  onClick={() => {
+                                    const next = opts.filter((_, j) => j !== i);
+                                    patchDraft(field.id, { optionsJson: next });
+                                  }}
+                                  className="text-muted-foreground hover:text-destructive transition-colors"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                            <button
+                              onClick={() => patchDraft(field.id, { optionsJson: [...opts, `Option ${opts.length + 1}`] })}
+                              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mt-1"
+                            >
+                              <Plus className="w-3 h-3" /> Add option
+                            </button>
+                          </div>
                         </div>
                       )}
 
-                      <div className="flex items-center gap-2 pt-2">
-                        <Switch
-                          checked={field.isRequired}
-                          onCheckedChange={(checked) => handleUpdateField(field.id, { isRequired: checked })}
-                        />
-                        <Label className="text-sm cursor-pointer">Required field</Label>
+                      {/* Required toggle + Save */}
+                      <div className="flex items-center justify-between pt-1 border-t border-border/50">
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={draft?.isRequired ?? field.isRequired}
+                            onCheckedChange={(checked) => patchDraft(field.id, { isRequired: checked })}
+                          />
+                          <Label className="text-sm cursor-pointer">Required</Label>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {dirty && (
+                            <span className="text-xs text-muted-foreground">Unsaved changes</span>
+                          )}
+                          <Button
+                            size="sm"
+                            disabled={!dirty || isSaving}
+                            onClick={() => handleSaveField(field.id)}
+                            className="min-w-[72px]"
+                          >
+                            {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Save"}
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </CardContent>
@@ -289,18 +379,18 @@ export default function FormEditor() {
               );
             })}
 
-            <Card className="border-dashed border-2 bg-transparent shadow-none">
-              <CardContent className="p-6">
-                <div className="flex flex-wrap gap-2 justify-center">
-                  {Object.entries(FIELD_ICONS).map(([type, Icon]) => (
-                    <Button key={type} variant="outline" size="sm" onClick={() => handleAddField(type as FormFieldFieldType)}>
-                      <Icon className="w-4 h-4 mr-2" />
-                      {type.replace('_', ' ')}
-                    </Button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            {/* Add field row */}
+            <div className="border border-dashed border-border p-5">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide mb-3">Add a field</p>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(FIELD_ICONS).map(([type, Icon]) => (
+                  <Button key={type} variant="outline" size="sm" onClick={() => handleAddField(type as FormFieldFieldType)}>
+                    <Icon className="w-4 h-4 mr-2" />
+                    {type.replace(/_/g, ' ')}
+                  </Button>
+                ))}
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="settings" className="mt-6">
