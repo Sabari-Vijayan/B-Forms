@@ -1,7 +1,7 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { useGetDashboardSummary, useListForms } from "@workspace/api-client-react";
 import { Link } from "wouter";
-import { FileText, Plus, Globe2, Clock, Share2, Settings, TrendingUp, Languages } from "lucide-react";
+import { FileText, Plus, Clock, Share2, Settings, TrendingUp, Languages } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { SUPPORTED_LANGUAGES } from "@/lib/constants";
 import {
@@ -11,6 +11,11 @@ import {
 const langName = (code: string) =>
   SUPPORTED_LANGUAGES.find((l) => l.code === code)?.name || code;
 
+// Indigo ramp: oldest bars lightest, today darkest
+const WEEKLY_COLORS = ["#e0e7ff", "#c7d2fe", "#a5b4fc", "#818cf8", "#6366f1", "#4f46e5", "#3730a3"];
+// Subtle palette for language bars (cycle by rank)
+const LANG_COLORS = ["#818cf8", "#34d399", "#60a5fa", "#f472b6", "#fb923c"];
+
 export default function Dashboard() {
   const { data: summary, isLoading: isSummaryLoading } = useGetDashboardSummary();
   const { data: forms, isLoading: isFormsLoading } = useListForms();
@@ -19,20 +24,21 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout>
-      <div className="max-w-5xl mx-auto space-y-10">
+      <div className="max-w-5xl mx-auto space-y-8">
 
         {/* Header */}
-        <div className="flex items-end justify-between">
+        <div className="flex items-end justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Dashboard</h1>
+            <h1 className="text-foreground">Dashboard</h1>
             <p className="text-sm text-muted-foreground mt-1">Overview of your forms and responses.</p>
           </div>
           <Link
             href="/create"
-            className="flex items-center gap-2 px-4 py-2 bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity"
+            className="flex items-center gap-2 px-4 py-2 bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity shrink-0"
           >
             <Plus className="w-4 h-4" />
-            New Form
+            <span className="hidden sm:inline">New Form</span>
+            <span className="sm:hidden">New</span>
           </Link>
         </div>
 
@@ -42,11 +48,11 @@ export default function Dashboard() {
             { label: "Total Forms", value: summary?.totalForms ?? "—" },
             { label: "Published", value: summary?.publishedForms ?? "—" },
             { label: "Drafts", value: summary?.draftForms ?? "—" },
-            { label: "Total Responses", value: summary?.totalResponses ?? "—" },
+            { label: "Responses", value: summary?.totalResponses ?? "—" },
           ].map(({ label, value }) => (
-            <div key={label} className="bg-background px-6 py-5">
+            <div key={label} className="bg-background px-4 sm:px-6 py-5">
               <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">{label}</p>
-              <p className="text-3xl font-semibold mt-2 text-foreground">
+              <p className="text-2xl sm:text-3xl font-semibold mt-2 text-foreground" style={{ fontFamily: "var(--app-font-display)" }}>
                 {isLoading ? <span className="inline-block w-10 h-7 bg-muted animate-pulse" /> : value}
               </p>
             </div>
@@ -54,10 +60,10 @@ export default function Dashboard() {
         </div>
 
         {/* Charts row */}
-        <div className="grid md:grid-cols-3 gap-px bg-border border border-border">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-border border border-border">
 
           {/* Weekly trend — spans 2 cols */}
-          <div className="md:col-span-2 bg-background p-6">
+          <div className="md:col-span-2 bg-background p-5 sm:p-6">
             <div className="flex items-center gap-2 mb-4">
               <TrendingUp className="w-4 h-4 text-muted-foreground" />
               <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Responses — last 7 days</span>
@@ -66,7 +72,7 @@ export default function Dashboard() {
               <div className="h-36 bg-muted animate-pulse" />
             ) : summary?.weeklyTrend?.length ? (
               <ResponsiveContainer width="100%" height={144}>
-                <BarChart data={summary.weeklyTrend} barSize={20}>
+                <BarChart data={summary.weeklyTrend} barSize={22}>
                   <XAxis
                     dataKey="date"
                     tickFormatter={(d) => format(parseISO(d), "MMM d")}
@@ -93,11 +99,8 @@ export default function Dashboard() {
                     labelFormatter={(d) => format(parseISO(d as string), "MMM d, yyyy")}
                   />
                   <Bar dataKey="count" radius={0}>
-                    {summary.weeklyTrend.map((_, i, arr) => (
-                      <Cell
-                        key={i}
-                        fill={i === arr.length - 1 ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground)/0.35)"}
-                      />
+                    {summary.weeklyTrend.map((_, i) => (
+                      <Cell key={i} fill={WEEKLY_COLORS[i] ?? WEEKLY_COLORS[WEEKLY_COLORS.length - 1]} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -110,7 +113,7 @@ export default function Dashboard() {
           </div>
 
           {/* Language breakdown */}
-          <div className="bg-background p-6">
+          <div className="bg-background p-5 sm:p-6">
             <div className="flex items-center gap-2 mb-4">
               <Languages className="w-4 h-4 text-muted-foreground" />
               <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Languages</span>
@@ -121,9 +124,10 @@ export default function Dashboard() {
               </div>
             ) : summary?.topLanguages?.length ? (
               <div className="space-y-3">
-                {summary.topLanguages.slice(0, 6).map(({ language, count }) => {
+                {summary.topLanguages.slice(0, 6).map(({ language, count }, idx) => {
                   const maxCount = summary.topLanguages[0].count;
                   const pct = Math.round((count / maxCount) * 100);
+                  const color = LANG_COLORS[idx % LANG_COLORS.length];
                   return (
                     <div key={language}>
                       <div className="flex justify-between text-xs mb-1">
@@ -131,7 +135,7 @@ export default function Dashboard() {
                         <span className="text-muted-foreground">{count}</span>
                       </div>
                       <div className="h-1.5 bg-muted">
-                        <div className="h-full bg-foreground" style={{ width: `${pct}%` }} />
+                        <div className="h-full transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
                       </div>
                     </div>
                   );
@@ -145,15 +149,15 @@ export default function Dashboard() {
 
         {/* Most active form highlight */}
         {!isLoading && summary?.mostActiveForm && (
-          <div className="border border-border p-5 flex items-center justify-between gap-4">
-            <div>
+          <div className="border border-border p-4 sm:p-5 flex items-center justify-between gap-4 flex-wrap">
+            <div className="min-w-0">
               <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-1">Most Active Form</p>
-              <p className="text-sm font-semibold text-foreground">{summary.mostActiveForm.title}</p>
+              <p className="text-sm font-semibold text-foreground truncate">{summary.mostActiveForm.title}</p>
               <p className="text-xs text-muted-foreground mt-0.5">{summary.mostActiveForm.responseCount} responses</p>
             </div>
             <Link
               href={`/forms/${summary.mostActiveForm.id}`}
-              className="px-4 py-2 border border-border text-sm hover:border-foreground transition-colors whitespace-nowrap"
+              className="px-4 py-2 border border-border text-sm hover:border-foreground transition-colors whitespace-nowrap shrink-0"
             >
               View Responses
             </Link>
@@ -162,7 +166,7 @@ export default function Dashboard() {
 
         {/* Forms List */}
         <div>
-          <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground mb-4">Your Forms</h2>
+          <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-4" style={{ fontFamily: "var(--app-font-sans)", letterSpacing: "0.08em" }}>Your Forms</h2>
 
           {isLoading ? (
             <div className="space-y-px border border-border">
@@ -171,12 +175,12 @@ export default function Dashboard() {
           ) : forms && forms.length > 0 ? (
             <div className="border border-border divide-y divide-border">
               {forms.map(form => (
-                <div key={form.id} className="flex items-center justify-between px-5 py-4 hover:bg-muted/20 transition-colors group">
-                  <div className="flex items-center gap-4 min-w-0">
+                <div key={form.id} className="flex items-center justify-between px-4 sm:px-5 py-4 hover:bg-muted/20 transition-colors">
+                  <div className="flex items-center gap-3 sm:gap-4 min-w-0">
                     <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-foreground truncate">{form.title}</p>
-                      <div className="flex items-center gap-3 mt-0.5">
+                      <div className="flex items-center gap-2 sm:gap-3 mt-0.5 flex-wrap">
                         <span className={`text-xs uppercase tracking-wide font-medium ${form.status === 'published' ? 'text-foreground' : 'text-muted-foreground'}`}>
                           {form.status}
                         </span>
@@ -184,22 +188,18 @@ export default function Dashboard() {
                           <Clock className="w-3 h-3" />
                           {format(new Date(form.createdAt), "MMM d, yyyy")}
                         </span>
-                        {form.status === "published" && (
-                          <span className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Globe2 className="w-3 h-3" />
-                            {form.supportedLanguages?.length || 1} lang{form.supportedLanguages?.length !== 1 ? "s" : ""}
-                          </span>
-                        )}
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-4">
-                    <Link href={`/forms/${form.id}`} className="flex items-center gap-1.5 px-3 py-1.5 border border-border text-xs hover:border-foreground transition-colors">
-                      <Settings className="w-3.5 h-3.5" /> Edit
+                  <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-3">
+                    <Link href={`/forms/${form.id}`} className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 border border-border text-xs hover:border-foreground transition-colors">
+                      <Settings className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Edit</span>
                     </Link>
                     {form.status === "published" && (
-                      <Link href={`/forms/${form.id}/share`} className="flex items-center gap-1.5 px-3 py-1.5 border border-border text-xs hover:border-foreground transition-colors">
-                        <Share2 className="w-3.5 h-3.5" /> Share
+                      <Link href={`/forms/${form.id}/share`} className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 border border-border text-xs hover:border-foreground transition-colors">
+                        <Share2 className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Share</span>
                       </Link>
                     )}
                   </div>
@@ -207,7 +207,7 @@ export default function Dashboard() {
               ))}
             </div>
           ) : (
-            <div className="border border-border py-20 text-center">
+            <div className="border border-border py-16 sm:py-20 text-center">
               <FileText className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
               <p className="text-sm font-medium text-foreground">No forms yet</p>
               <p className="text-xs text-muted-foreground mt-1 mb-6">Create your first multilingual form using AI.</p>

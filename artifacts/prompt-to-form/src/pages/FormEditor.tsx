@@ -33,6 +33,11 @@ import type { FormFieldFieldType } from "@workspace/api-client-react/src/generat
 // Minimal Drag and Drop Simulation (would use dnd-kit in a real app, keeping it simpler here for code size)
 // The prompt asked for dnd-kit, so I will build a simplified version.
 
+// Chart color palettes
+const WEEKLY_COLORS = ["#e0e7ff", "#c7d2fe", "#a5b4fc", "#818cf8", "#6366f1", "#4f46e5", "#3730a3"];
+const FIELD_OPTION_COLORS = ["#818cf8", "#34d399", "#60a5fa", "#f472b6", "#fb923c", "#a78bfa", "#38bdf8"];
+const LANG_COLORS = ["#818cf8", "#34d399", "#60a5fa", "#f472b6", "#fb923c"];
+
 const FIELD_ICONS: Record<string, React.ElementType> = {
   short_text: Type,
   long_text: AlignLeft,
@@ -225,7 +230,7 @@ export default function FormEditor() {
       <div className="max-w-5xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">{form.title}</h1>
+            <h1 className="text-foreground">{form.title}</h1>
             <div className="flex items-center gap-2 mt-1">
               <Badge variant={form.status === 'published' ? 'default' : 'secondary'}>
                 {form.status}
@@ -598,35 +603,35 @@ export default function FormEditor() {
                   ) : (
                     <>
                       {/* ── Stat tiles ── */}
-                      <div className="grid grid-cols-3 border border-border divide-x divide-border">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 border border-border divide-y sm:divide-y-0 sm:divide-x divide-border">
                         {[
                           { label: "Total Responses", value: total },
                           { label: "Avg / Day (7d)", value: avgPerDay },
                           { label: "Top Language", value: topLang?.name || "—" },
                         ].map(({ label, value }) => (
-                          <div key={label} className="px-6 py-5">
+                          <div key={label} className="px-5 py-4 sm:px-6 sm:py-5">
                             <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">{label}</p>
-                            <p className="text-2xl font-semibold text-foreground">{value}</p>
+                            <p className="text-2xl font-semibold text-foreground" style={{ fontFamily: "var(--app-font-display)" }}>{value}</p>
                           </div>
                         ))}
                       </div>
 
                       {/* ── Charts row ── */}
-                      <div className="grid grid-cols-2 gap-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                         {/* Weekly trend */}
                         <div className="border border-border p-5">
                           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-4">Responses — Last 7 Days</p>
                           <ResponsiveContainer width="100%" height={140}>
-                            <BarChart data={weeklyTrend} barSize={20}>
-                              <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+                            <BarChart data={weeklyTrend} barSize={22}>
+                              <XAxis dataKey="date" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
                               <YAxis hide allowDecimals={false} />
                               <Tooltip
-                                contentStyle={{ border: "1px solid #e5e7eb", borderRadius: 0, fontSize: 12, padding: "4px 10px" }}
-                                cursor={{ fill: "rgba(0,0,0,0.04)" }}
+                                contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))", borderRadius: 0, fontSize: 12, padding: "4px 10px" }}
+                                cursor={{ fill: "hsl(var(--muted))" }}
                               />
                               <Bar dataKey="count" radius={0}>
-                                {weeklyTrend.map((entry, i) => (
-                                  <Cell key={i} fill={i === 6 ? "#0f0f0f" : "#d1d5db"} />
+                                {weeklyTrend.map((_, i) => (
+                                  <Cell key={i} fill={WEEKLY_COLORS[i] ?? WEEKLY_COLORS[WEEKLY_COLORS.length - 1]} />
                                 ))}
                               </Bar>
                             </BarChart>
@@ -640,7 +645,7 @@ export default function FormEditor() {
                             <p className="text-sm text-muted-foreground">No data</p>
                           ) : (
                             <div className="space-y-3">
-                              {langBreakdown.map(({ code, name, count }) => (
+                              {langBreakdown.map(({ code, name, count }, idx) => (
                                 <div key={code}>
                                   <div className="flex justify-between text-xs mb-1">
                                     <span className="font-medium text-foreground">{name}</span>
@@ -648,8 +653,8 @@ export default function FormEditor() {
                                   </div>
                                   <div className="h-2 bg-muted border border-border">
                                     <div
-                                      className="h-full bg-foreground transition-all"
-                                      style={{ width: `${(count / maxLangCount) * 100}%` }}
+                                      className="h-full transition-all"
+                                      style={{ width: `${(count / maxLangCount) * 100}%`, backgroundColor: LANG_COLORS[idx % LANG_COLORS.length] }}
                                     />
                                   </div>
                                 </div>
@@ -663,12 +668,12 @@ export default function FormEditor() {
                       {fieldStats.length > 0 && (
                         <div>
                           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-4">Answer Distribution</p>
-                          <div className="grid grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {fieldStats.map(({ field: f, data: fData, maxCount }) => (
                               <div key={f.id} className="border border-border p-4">
                                 <p className="text-xs font-medium text-foreground mb-3 truncate" title={f.label}>{f.label}</p>
                                 <div className="space-y-2">
-                                  {fData.map(({ label, count }) => (
+                                  {fData.map(({ label, count }, optIdx) => (
                                     <div key={label}>
                                       <div className="flex justify-between text-xs mb-1">
                                         <span className="text-muted-foreground truncate max-w-[140px]" title={label}>{label}</span>
@@ -676,8 +681,11 @@ export default function FormEditor() {
                                       </div>
                                       <div className="h-1.5 bg-muted border border-border">
                                         <div
-                                          className="h-full bg-foreground transition-all"
-                                          style={{ width: `${(count / maxCount) * 100}%` }}
+                                          className="h-full transition-all"
+                                          style={{
+                                            width: `${(count / maxCount) * 100}%`,
+                                            backgroundColor: FIELD_OPTION_COLORS[optIdx % FIELD_OPTION_COLORS.length],
+                                          }}
                                         />
                                       </div>
                                     </div>

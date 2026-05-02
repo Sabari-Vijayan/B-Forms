@@ -54,12 +54,27 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     );
   };
 
+  const mobileNavLink = (href: string, label: string, Icon: React.ElementType) => {
+    const active = location === href;
+    return (
+      <Link
+        href={href}
+        className={`flex flex-col items-center gap-1 px-5 py-2 text-xs transition-colors ${
+          active ? "text-foreground font-medium" : "text-muted-foreground"
+        }`}
+      >
+        <Icon className="w-5 h-5" />
+        {label}
+      </Link>
+    );
+  };
+
   return (
     <div className="min-h-screen flex bg-background">
-      {/* Sidebar */}
+      {/* Sidebar — desktop only */}
       <aside className="w-60 border-r border-border bg-sidebar hidden md:flex flex-col shrink-0">
         <div className="h-16 flex items-center px-6 border-b border-border">
-          <Link href="/" className="flex items-center gap-2.5 font-semibold text-sm tracking-tight text-foreground">
+          <Link href="/" className="flex items-center gap-2.5 text-sm tracking-tight text-foreground" style={{ fontFamily: "var(--app-font-display)", fontWeight: 700 }}>
             <div className="w-7 h-7 bg-foreground text-background flex items-center justify-center text-xs font-bold">
               P
             </div>
@@ -88,20 +103,30 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       <main className="flex-1 flex flex-col min-h-[100dvh] overflow-auto">
         {/* Mobile Header */}
         <header className="md:hidden h-14 border-b border-border bg-background flex items-center px-4 justify-between sticky top-0 z-10">
-          <Link href="/" className="font-semibold text-sm flex items-center gap-2 text-foreground">
+          <Link href="/" className="text-sm flex items-center gap-2 text-foreground" style={{ fontFamily: "var(--app-font-display)", fontWeight: 700 }}>
             <div className="w-6 h-6 bg-foreground text-background flex items-center justify-center text-xs font-bold">
               P
             </div>
-            P2F
+            Prompt to Form
           </Link>
-          <button onClick={handleLogout} className="text-muted-foreground hover:text-foreground p-1">
-            <LogOut className="w-4 h-4" />
-          </button>
         </header>
 
-        <div className="flex-1 p-6 md:p-10 max-w-6xl mx-auto w-full">
+        <div className="flex-1 p-4 sm:p-6 md:p-10 max-w-6xl mx-auto w-full pb-20 md:pb-10">
           {children}
         </div>
+
+        {/* Mobile Bottom Nav */}
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-background border-t border-border flex items-center justify-around z-20">
+          {mobileNavLink("/", "Dashboard", LayoutDashboard)}
+          {mobileNavLink("/create", "New Form", Plus)}
+          <button
+            onClick={handleLogout}
+            className="flex flex-col items-center gap-1 px-5 py-2 text-xs text-muted-foreground"
+          >
+            <LogOut className="w-5 h-5" />
+            Sign Out
+          </button>
+        </nav>
       </main>
     </div>
   );
