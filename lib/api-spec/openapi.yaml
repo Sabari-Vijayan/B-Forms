@@ -1,22 +1,30 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Prompt-to-Form API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication
+  - name: forms
+    description: Form management
+  - name: fields
+    description: Form field management
+  - name: submissions
+    description: Form submissions
+  - name: translations
+    description: Form translations
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +32,450 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /forms:
+    get:
+      operationId: listForms
+      tags: [forms]
+      summary: List all forms for the current user
+      responses:
+        "200":
+          description: List of forms
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Form"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createForm
+      tags: [forms]
+      summary: Create a new form
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFormBody"
+      responses:
+        "201":
+          description: Form created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormWithFields"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /forms/{id}:
+    get:
+      operationId: getForm
+      tags: [forms]
+      summary: Get a form by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Form details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormWithFields"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateForm
+      tags: [forms]
+      summary: Update a form
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateFormBody"
+      responses:
+        "200":
+          description: Updated form
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Form"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteForm
+      tags: [forms]
+      summary: Delete a form
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /forms/{id}/publish:
+    post:
+      operationId: publishForm
+      tags: [forms]
+      summary: Publish a form and trigger translation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PublishFormBody"
+      responses:
+        "200":
+          description: Published
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublishFormResult"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /forms/{id}/fields:
+    get:
+      operationId: listFormFields
+      tags: [fields]
+      summary: List fields for a form
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of fields
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FormField"
+    post:
+      operationId: createFormField
+      tags: [fields]
+      summary: Create a field
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFieldBody"
+      responses:
+        "201":
+          description: Created field
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormField"
+
+  /forms/{id}/fields/reorder:
+    patch:
+      operationId: reorderFields
+      tags: [fields]
+      summary: Reorder fields
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReorderFieldsBody"
+      responses:
+        "200":
+          description: Reordered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                required: [success]
+
+  /forms/{id}/fields/{fieldId}:
+    patch:
+      operationId: updateFormField
+      tags: [fields]
+      summary: Update a form field
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: fieldId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateFieldBody"
+      responses:
+        "200":
+          description: Updated field
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormField"
+    delete:
+      operationId: deleteFormField
+      tags: [fields]
+      summary: Delete a form field
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: fieldId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /forms/{id}/submissions:
+    get:
+      operationId: listSubmissions
+      tags: [submissions]
+      summary: List submissions for a form
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of submissions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Submission"
+
+  /forms/{id}/stats:
+    get:
+      operationId: getFormStats
+      tags: [forms]
+      summary: Get submission stats for a form
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Form stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormStats"
+
+  /forms/{id}/translations:
+    get:
+      operationId: listFormTranslations
+      tags: [translations]
+      summary: List translations for a form
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of translations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FormTranslation"
+
+  /public/forms/{slug}:
+    get:
+      operationId: getPublicForm
+      tags: [forms]
+      summary: Get a published form by slug (public, no auth required)
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Public form
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicForm"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /public/forms/{slug}/submit:
+    post:
+      operationId: submitForm
+      tags: [submissions]
+      summary: Submit a response to a public form
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitFormBody"
+      responses:
+        "201":
+          description: Submission recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Submission"
+        "400":
+          description: Validation error or form closed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /ai/generate:
+    post:
+      operationId: generateForm
+      tags: [forms]
+      summary: Generate a form from a natural language prompt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateFormBody"
+      responses:
+        "200":
+          description: Generated form
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateFormResult"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [forms]
+      summary: Get dashboard summary stats
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +483,357 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+      required: [id, email]
+
+    Form:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        slug:
+          type: string
+        originalLanguage:
+          type: string
+        status:
+          type: string
+          enum: [draft, published, closed]
+        supportedLanguages:
+          type: array
+          items:
+            type: string
+        responseLimit:
+          type: integer
+          nullable: true
+        closesAt:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+      required: [id, userId, title, slug, originalLanguage, status, supportedLanguages, createdAt]
+
+    FormField:
+      type: object
+      properties:
+        id:
+          type: string
+        formId:
+          type: string
+        orderIndex:
+          type: integer
+        fieldType:
+          type: string
+          enum: [short_text, long_text, single_choice, multi_choice, rating, date, email, phone]
+        label:
+          type: string
+        placeholder:
+          type: string
+          nullable: true
+        isRequired:
+          type: boolean
+        optionsJson:
+          type: array
+          items:
+            type: string
+          nullable: true
+      required: [id, formId, orderIndex, fieldType, label, isRequired]
+
+    FormTranslation:
+      type: object
+      properties:
+        id:
+          type: string
+        formId:
+          type: string
+        language:
+          type: string
+        translationsJson:
+          type: object
+          additionalProperties: true
+        generatedAt:
+          type: string
+      required: [id, formId, language, translationsJson, generatedAt]
+
+    Submission:
+      type: object
+      properties:
+        id:
+          type: string
+        formId:
+          type: string
+        respondentLanguage:
+          type: string
+        rawResponsesJson:
+          type: object
+          additionalProperties: true
+        translatedResponsesJson:
+          type: object
+          additionalProperties: true
+          nullable: true
+        translationStatus:
+          type: string
+          enum: [pending, done, skipped]
+        submittedAt:
+          type: string
+      required: [id, formId, respondentLanguage, rawResponsesJson, translationStatus, submittedAt]
+
+    FormWithFields:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        slug:
+          type: string
+        originalLanguage:
+          type: string
+        status:
+          type: string
+          enum: [draft, published, closed]
+        supportedLanguages:
+          type: array
+          items:
+            type: string
+        responseLimit:
+          type: integer
+          nullable: true
+        closesAt:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        fields:
+          type: array
+          items:
+            $ref: "#/components/schemas/FormField"
+      required: [id, userId, title, slug, originalLanguage, status, supportedLanguages, createdAt, fields]
+
+    PublicForm:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        slug:
+          type: string
+        originalLanguage:
+          type: string
+        supportedLanguages:
+          type: array
+          items:
+            type: string
+        fields:
+          type: array
+          items:
+            $ref: "#/components/schemas/FormField"
+        translations:
+          type: array
+          items:
+            $ref: "#/components/schemas/FormTranslation"
+      required: [id, title, slug, originalLanguage, supportedLanguages, fields, translations]
+
+    FormStats:
+      type: object
+      properties:
+        totalResponses:
+          type: integer
+        languageBreakdown:
+          type: object
+          additionalProperties:
+            type: integer
+        recentResponses:
+          type: integer
+      required: [totalResponses, languageBreakdown, recentResponses]
+
+    DashboardSummary:
+      type: object
+      properties:
+        totalForms:
+          type: integer
+        publishedForms:
+          type: integer
+        draftForms:
+          type: integer
+        totalResponses:
+          type: integer
+        recentForms:
+          type: array
+          items:
+            $ref: "#/components/schemas/Form"
+      required: [totalForms, publishedForms, draftForms, totalResponses, recentForms]
+
+    CreateFormBody:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        originalLanguage:
+          type: string
+        fields:
+          type: array
+          items:
+            $ref: "#/components/schemas/CreateFieldBody"
+      required: [title, originalLanguage, fields]
+
+    UpdateFormBody:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [draft, published, closed]
+        supportedLanguages:
+          type: array
+          items:
+            type: string
+        responseLimit:
+          type: integer
+          nullable: true
+        closesAt:
+          type: string
+          nullable: true
+
+    PublishFormBody:
+      type: object
+      properties:
+        languages:
+          type: array
+          items:
+            type: string
+      required: [languages]
+
+    PublishFormResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        failedLanguages:
+          type: integer
+        form:
+          $ref: "#/components/schemas/Form"
+      required: [success, failedLanguages, form]
+
+    CreateFieldBody:
+      type: object
+      properties:
+        fieldType:
+          type: string
+          enum: [short_text, long_text, single_choice, multi_choice, rating, date, email, phone]
+        label:
+          type: string
+        placeholder:
+          type: string
+          nullable: true
+        isRequired:
+          type: boolean
+        optionsJson:
+          type: array
+          items:
+            type: string
+          nullable: true
+        orderIndex:
+          type: integer
+      required: [fieldType, label, isRequired]
+
+    UpdateFieldBody:
+      type: object
+      properties:
+        label:
+          type: string
+        placeholder:
+          type: string
+          nullable: true
+        isRequired:
+          type: boolean
+        optionsJson:
+          type: array
+          items:
+            type: string
+          nullable: true
+        orderIndex:
+          type: integer
+
+    ReorderFieldsBody:
+      type: object
+      properties:
+        fieldIds:
+          type: array
+          items:
+            type: string
+      required: [fieldIds]
+
+    SubmitFormBody:
+      type: object
+      properties:
+        respondentLanguage:
+          type: string
+        responses:
+          type: object
+          additionalProperties: true
+      required: [respondentLanguage, responses]
+
+    GenerateFormBody:
+      type: object
+      properties:
+        prompt:
+          type: string
+      required: [prompt]
+
+    GenerateFormResult:
+      type: object
+      properties:
+        form:
+          type: object
+          properties:
+            title:
+              type: string
+            description:
+              type: string
+              nullable: true
+            fields:
+              type: array
+              items:
+                $ref: "#/components/schemas/CreateFieldBody"
+          required: [title, fields]
+        detectedLanguage:
+          type: string
+      required: [form, detectedLanguage]
