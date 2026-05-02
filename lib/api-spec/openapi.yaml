@@ -698,7 +698,38 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Form"
-      required: [totalForms, publishedForms, draftForms, totalResponses, recentForms]
+        weeklyTrend:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+              count:
+                type: integer
+            required: [date, count]
+        topLanguages:
+          type: array
+          items:
+            type: object
+            properties:
+              language:
+                type: string
+              count:
+                type: integer
+            required: [language, count]
+        mostActiveForm:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+            title:
+              type: string
+            responseCount:
+              type: integer
+          required: [id, title, responseCount]
+      required: [totalForms, publishedForms, draftForms, totalResponses, recentForms, weeklyTrend, topLanguages]
 
     CreateFormBody:
       type: object

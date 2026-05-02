@@ -145,12 +145,31 @@ export interface FormStats {
   recentResponses: number;
 }
 
+export type DashboardSummaryWeeklyTrendItem = {
+  date: string;
+  count: number;
+};
+
+export type DashboardSummaryTopLanguagesItem = {
+  language: string;
+  count: number;
+};
+
+export type DashboardSummaryMostActiveForm = {
+  id: string;
+  title: string;
+  responseCount: number;
+} | null;
+
 export interface DashboardSummary {
   totalForms: number;
   publishedForms: number;
   draftForms: number;
   totalResponses: number;
   recentForms: Form[];
+  weeklyTrend: DashboardSummaryWeeklyTrendItem[];
+  topLanguages: DashboardSummaryTopLanguagesItem[];
+  mostActiveForm?: DashboardSummaryMostActiveForm;
 }
 
 export type CreateFieldBodyFieldType =

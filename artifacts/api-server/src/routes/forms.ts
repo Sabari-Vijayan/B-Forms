@@ -347,16 +347,6 @@ router.get("/dashboard/summary", requireAuth, async (req: AuthenticatedRequest, 
   const published = formList.filter((f) => f.status === "published").length;
   const drafts = formList.filter((f) => f.status === "draft").length;
 
-  let totalResponses = 0;
-  if (formList.length > 0) {
-    const formIds = formList.map((f) => f.id);
-    const { count } = await admin
-      .from("submissions")
-      .select("id", { count: "exact", head: true })
-      .in("form_id", formIds);
-    totalResponses = count || 0;
-  }
-
   const recentForms = formList.slice(0, 5).map((f) => ({
     id: f.id,
     userId: f.user_id,
@@ -364,6 +354,7 @@ router.get("/dashboard/summary", requireAuth, async (req: AuthenticatedRequest, 
     description: f.description,
     slug: f.slug,
     originalLanguage: f.original_language,
+    preferredLanguage: f.preferred_language ?? null,
     status: f.status,
     supportedLanguages: f.supported_languages || [],
     responseLimit: f.response_limit,
@@ -371,12 +362,75 @@ router.get("/dashboard/summary", requireAuth, async (req: AuthenticatedRequest, 
     createdAt: f.created_at,
   }));
 
+  // Default empties
+  let totalResponses = 0;
+  const weeklyTrend: { date: string; count: number }[] = [];
+  const topLanguages: { language: string; count: number }[] = [];
+  let mostActiveForm: { id: string; title: string; responseCount: number } | null = null;
+
+  if (formList.length > 0) {
+    const formIds = formList.map((f) => f.id);
+
+    // Fetch all submissions with language + date
+    const { data: subs } = await admin
+      .from("submissions")
+      .select("form_id, respondent_language, submitted_at")
+      .in("form_id", formIds);
+
+    const submissions = subs || [];
+    totalResponses = submissions.length;
+
+    // Weekly trend: last 7 days
+    const now = new Date();
+    const dayMap: Record<string, number> = {};
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      dayMap[d.toISOString().slice(0, 10)] = 0;
+    }
+    for (const s of submissions) {
+      const day = s.submitted_at.slice(0, 10);
+      if (day in dayMap) dayMap[day]++;
+    }
+    for (const [date, count] of Object.entries(dayMap)) {
+      weeklyTrend.push({ date, count });
+    }
+
+    // Language breakdown
+    const langMap: Record<string, number> = {};
+    for (const s of submissions) {
+      langMap[s.respondent_language] = (langMap[s.respondent_language] || 0) + 1;
+    }
+    for (const [language, count] of Object.entries(langMap)) {
+      topLanguages.push({ language, count });
+    }
+    topLanguages.sort((a, b) => b.count - a.count);
+
+    // Most active form
+    const formCountMap: Record<string, number> = {};
+    for (const s of submissions) {
+      formCountMap[s.form_id] = (formCountMap[s.form_id] || 0) + 1;
+    }
+    let maxCount = 0;
+    let maxFormId = "";
+    for (const [fid, cnt] of Object.entries(formCountMap)) {
+      if (cnt > maxCount) { maxCount = cnt; maxFormId = fid; }
+    }
+    if (maxFormId) {
+      const f = formList.find((f) => f.id === maxFormId);
+      if (f) mostActiveForm = { id: f.id, title: f.title, responseCount: maxCount };
+    }
+  }
+
   res.json({
     totalForms: formList.length,
     publishedForms: published,
     draftForms: drafts,
     totalResponses,
     recentForms,
+    weeklyTrend,
+    topLanguages,
+    mostActiveForm,
   });
 });
 

@@ -21,7 +21,8 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Settings, List, FileSpreadsheet, Share2, GripVertical, Trash2, Plus, Type, AlignLeft, CheckSquare, ListChecks, Star, Calendar, Mail, Phone, Download } from "lucide-react";
+import { Loader2, Settings, List, FileSpreadsheet, Share2, GripVertical, Trash2, Plus, Type, AlignLeft, CheckSquare, ListChecks, Star, Calendar, Mail, Phone, Download, X, ChevronRight } from "lucide-react";
+import type { Submission } from "@workspace/api-client-react/src/generated/api.schemas";
 import { SUPPORTED_LANGUAGES } from "@/lib/constants";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -59,6 +60,7 @@ export default function FormEditor() {
   const reorderFields = useReorderFields();
 
   const [activeTab, setActiveTab] = useState("fields");
+  const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
 
   // Settings State
   const [title, setTitle] = useState("");
@@ -441,15 +443,20 @@ export default function FormEditor() {
                         <tbody>
                           {submissions.map((sub, idx) => {
                             const data = (sub.translatedResponsesJson || sub.rawResponsesJson || {}) as Record<string, any>;
-                            const langName = SUPPORTED_LANGUAGES.find(l => l.code === sub.respondentLanguage)?.name || sub.respondentLanguage;
+                            const subLangName = SUPPORTED_LANGUAGES.find(l => l.code === sub.respondentLanguage)?.name || sub.respondentLanguage;
+                            const isSelected = selectedSubmission?.id === sub.id;
                             return (
-                              <tr key={sub.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
+                              <tr
+                                key={sub.id}
+                                onClick={() => setSelectedSubmission(isSelected ? null : sub)}
+                                className={`border-b border-border last:border-0 transition-colors cursor-pointer ${isSelected ? "bg-muted/40" : "hover:bg-muted/20"}`}
+                              >
                                 <td className="px-4 py-3 text-muted-foreground">{idx + 1}</td>
                                 <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                                   {format(new Date(sub.submittedAt), "MMM d, yyyy · HH:mm")}
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap">
-                                  <span className="border border-border px-2 py-0.5 text-xs font-medium">{langName}</span>
+                                  <span className="border border-border px-2 py-0.5 text-xs font-medium">{subLangName}</span>
                                 </td>
                                 {orderedFields.map(f => {
                                   const val = data[f.id];
@@ -470,6 +477,9 @@ export default function FormEditor() {
                                     {sub.translationStatus}
                                   </span>
                                 </td>
+                                <td className="px-4 py-3">
+                                  <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${isSelected ? "rotate-90" : ""}`} />
+                                </td>
                               </tr>
                             );
                           })}
@@ -483,6 +493,91 @@ export default function FormEditor() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Response Detail Drawer */}
+      {selectedSubmission && (() => {
+        const orderedFields = (fields || []).slice().sort((a, b) => a.orderIndex - b.orderIndex);
+        const raw = (selectedSubmission.rawResponsesJson || {}) as Record<string, any>;
+        const translated = (selectedSubmission.translatedResponsesJson || {}) as Record<string, any>;
+        const hasTranslation = selectedSubmission.translationStatus === "done";
+        const drawerLangName = SUPPORTED_LANGUAGES.find(l => l.code === selectedSubmission.respondentLanguage)?.name || selectedSubmission.respondentLanguage;
+
+        return (
+          <>
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 bg-black/20 z-40"
+              onClick={() => setSelectedSubmission(null)}
+            />
+            {/* Panel */}
+            <div className="fixed right-0 top-0 h-full w-full max-w-md bg-background border-l border-border z-50 flex flex-col shadow-xl">
+              {/* Drawer Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Response Detail</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {format(new Date(selectedSubmission.submittedAt), "MMM d, yyyy · HH:mm")}
+                    {" · "}
+                    <span className="font-medium">{drawerLangName}</span>
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSelectedSubmission(null)}
+                  className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Translation status badge */}
+              <div className="px-6 py-3 border-b border-border shrink-0 flex items-center gap-3">
+                <span className="text-xs text-muted-foreground uppercase tracking-wide">Translation</span>
+                <span className={`text-xs font-medium uppercase tracking-wide ${
+                  selectedSubmission.translationStatus === "done" ? "text-foreground" :
+                  selectedSubmission.translationStatus === "skipped" ? "text-muted-foreground" :
+                  "text-muted-foreground"
+                }`}>
+                  {selectedSubmission.translationStatus === "done" ? "Translated" :
+                   selectedSubmission.translationStatus === "skipped" ? "No translation needed" :
+                   selectedSubmission.translationStatus}
+                </span>
+              </div>
+
+              {/* Fields */}
+              <div className="flex-1 overflow-y-auto">
+                {hasTranslation && (
+                  <div className="grid grid-cols-2 px-6 py-2 border-b border-border bg-muted/30">
+                    <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Original</span>
+                    <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Translated</span>
+                  </div>
+                )}
+                <div className="divide-y divide-border">
+                  {orderedFields.map(f => {
+                    const rawVal = raw[f.id];
+                    const translatedVal = translated[f.id];
+                    const rawDisplay = Array.isArray(rawVal) ? rawVal.join(", ") : rawVal != null ? String(rawVal) : "—";
+                    const translatedDisplay = Array.isArray(translatedVal) ? translatedVal.join(", ") : translatedVal != null ? String(translatedVal) : null;
+
+                    return (
+                      <div key={f.id} className="px-6 py-4">
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">{f.label}</p>
+                        {hasTranslation ? (
+                          <div className="grid grid-cols-2 gap-4">
+                            <p className="text-sm text-foreground leading-relaxed">{rawDisplay}</p>
+                            <p className="text-sm text-foreground leading-relaxed">{translatedDisplay || <span className="text-muted-foreground/50">—</span>}</p>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-foreground leading-relaxed">{rawDisplay}</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </>
+        );
+      })()}
     </DashboardLayout>
   );
 }

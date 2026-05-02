@@ -458,4 +458,23 @@ export const GetDashboardSummaryResponse = zod.object({
       createdAt: zod.string(),
     }),
   ),
+  weeklyTrend: zod.array(
+    zod.object({
+      date: zod.string(),
+      count: zod.number(),
+    }),
+  ),
+  topLanguages: zod.array(
+    zod.object({
+      language: zod.string(),
+      count: zod.number(),
+    }),
+  ),
+  mostActiveForm: zod
+    .object({
+      id: zod.string(),
+      title: zod.string(),
+      responseCount: zod.number(),
+    })
+    .nullish(),
 });
