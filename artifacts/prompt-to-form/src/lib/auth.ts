@@ -18,25 +18,25 @@ export function initAuthTokenGetter() {
   setAuthTokenGetter(() => getStoredToken());
 }
 
-export async function loginWithEmail(email: string) {
-  return customFetch<{ success: boolean; message: string }>("/api/auth/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email }),
-  });
-}
-
-export async function verifyOtp(email: string, token: string) {
+async function authRequest(path: string, email: string, password: string) {
   const data = await customFetch<{ access_token: string; user: { id: string; email: string } }>(
-    "/api/auth/verify",
+    path,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, token }),
+      body: JSON.stringify({ email, password }),
     }
   );
   setStoredToken(data.access_token);
   return data;
+}
+
+export function login(email: string, password: string) {
+  return authRequest("/api/auth/login", email, password);
+}
+
+export function signup(email: string, password: string) {
+  return authRequest("/api/auth/signup", email, password);
 }
 
 export async function logout() {

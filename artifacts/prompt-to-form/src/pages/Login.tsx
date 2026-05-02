@@ -1,75 +1,34 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useLocation } from "wouter";
-import { loginWithEmail, verifyOtp } from "@/lib/auth";
+import { login, signup } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Mail, ArrowLeft, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 export default function Login() {
   const [, setLocation] = useLocation();
+  const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
-  const [code, setCode] = useState(["", "", "", "", "", ""]);
-  const [step, setStep] = useState<"email" | "code">("email");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  const handleSendCode = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) return;
+    if (!email || !password) return;
     setIsLoading(true);
     try {
-      await loginWithEmail(email);
-      setStep("code");
-      toast.success("Code sent! Check your email.");
-      setTimeout(() => inputRefs.current[0]?.focus(), 100);
-    } catch (err: any) {
-      toast.error(err?.data?.error || "Failed to send code. Check your Supabase setup.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleCodeChange = (index: number, value: string) => {
-    const char = value.replace(/\D/g, "").slice(-1);
-    const next = [...code];
-    next[index] = char;
-    setCode(next);
-    if (char && index < 5) {
-      inputRefs.current[index + 1]?.focus();
-    }
-    if (next.every(c => c !== "") && next.join("").length === 6) {
-      handleVerify(next.join(""));
-    }
-  };
-
-  const handleCodeKeyDown = (index: number, e: React.KeyboardEvent) => {
-    if (e.key === "Backspace" && !code[index] && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    }
-  };
-
-  const handlePaste = (e: React.ClipboardEvent) => {
-    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
-    if (pasted.length === 6) {
-      setCode(pasted.split(""));
-      handleVerify(pasted);
-    }
-  };
-
-  const handleVerify = async (fullCode?: string) => {
-    const token = fullCode ?? code.join("");
-    if (token.length !== 6) return;
-    setIsLoading(true);
-    try {
-      await verifyOtp(email, token);
-      toast.success("Signed in!");
+      if (mode === "login") {
+        await login(email, password);
+      } else {
+        await signup(email, password);
+      }
       setLocation("/");
     } catch (err: any) {
-      toast.error(err?.data?.error || "Invalid or expired code. Try again.");
-      setCode(["", "", "", "", "", ""]);
-      setTimeout(() => inputRefs.current[0]?.focus(), 50);
+      const msg = err?.data?.error ?? err?.message ?? "Something went wrong";
+      toast.error(msg);
     } finally {
       setIsLoading(false);
     }
@@ -91,100 +50,75 @@ export default function Login() {
         </div>
 
         <Card className="border-border/50 shadow-xl shadow-primary/5 bg-card/50 backdrop-blur-sm">
-          {step === "email" ? (
-            <>
-              <CardHeader>
-                <CardTitle>Welcome</CardTitle>
-                <CardDescription>Enter your email — we'll send you a 6-digit code</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleSendCode} className="space-y-4">
-                  <Input
-                    type="email"
-                    placeholder="name@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    autoComplete="email"
-                    autoFocus
-                    className="h-11"
-                  />
-                  <Button type="submit" className="w-full h-11" disabled={isLoading}>
-                    {isLoading ? (
-                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Sending...</>
-                    ) : (
-                      <><Mail className="w-4 h-4 mr-2" /> Send Code</>
-                    )}
-                  </Button>
-                </form>
-              </CardContent>
-            </>
-          ) : (
-            <>
-              <CardHeader>
-                <CardTitle>Check your email</CardTitle>
-                <CardDescription>
-                  Enter the 6-digit code sent to <span className="font-medium text-foreground">{email}</span>
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="flex gap-2 justify-center" onPaste={handlePaste}>
-                  {code.map((digit, i) => (
-                    <input
-                      key={i}
-                      ref={el => { inputRefs.current[i] = el; }}
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={1}
-                      value={digit}
-                      onChange={e => handleCodeChange(i, e.target.value)}
-                      onKeyDown={e => handleCodeKeyDown(i, e)}
-                      className="w-11 h-14 text-center text-xl font-bold border-2 rounded-lg bg-background focus:border-primary focus:outline-none transition-colors"
-                      disabled={isLoading}
-                    />
-                  ))}
-                </div>
+          <CardHeader>
+            <CardTitle>{mode === "login" ? "Welcome back" : "Create account"}</CardTitle>
+            <CardDescription>
+              {mode === "login"
+                ? "Sign in to manage your forms"
+                : "Sign up to start building multilingual forms"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="name@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                  autoFocus
+                  className="h-11"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoComplete={mode === "login" ? "current-password" : "new-password"}
+                  className="h-11"
+                />
+              </div>
+              <Button type="submit" className="w-full h-11" disabled={isLoading}>
+                {isLoading ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : null}
+                {mode === "login" ? "Sign In" : "Create Account"}
+              </Button>
+            </form>
 
-                {isLoading && (
-                  <div className="flex justify-center">
-                    <Loader2 className="w-5 h-5 animate-spin text-primary" />
-                  </div>
-                )}
-
-                <div className="flex flex-col gap-2">
-                  <Button
-                    onClick={() => handleVerify()}
-                    disabled={code.join("").length !== 6 || isLoading}
-                    className="w-full h-11"
-                  >
-                    Verify Code
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className="w-full text-muted-foreground"
-                    onClick={() => {
-                      setStep("email");
-                      setCode(["", "", "", "", "", ""]);
-                    }}
-                    disabled={isLoading}
-                  >
-                    <ArrowLeft className="w-4 h-4 mr-2" /> Use a different email
-                  </Button>
-                </div>
-
-                <p className="text-center text-sm text-muted-foreground">
-                  Didn't get it?{" "}
+            <div className="mt-4 text-center text-sm text-muted-foreground">
+              {mode === "login" ? (
+                <>
+                  Don't have an account?{" "}
                   <button
                     className="text-primary hover:underline font-medium"
-                    onClick={handleSendCode as any}
-                    disabled={isLoading}
+                    onClick={() => setMode("signup")}
                   >
-                    Resend code
+                    Sign up
                   </button>
-                </p>
-              </CardContent>
-            </>
-          )}
+                </>
+              ) : (
+                <>
+                  Already have an account?{" "}
+                  <button
+                    className="text-primary hover:underline font-medium"
+                    onClick={() => setMode("login")}
+                  >
+                    Sign in
+                  </button>
+                </>
+              )}
+            </div>
+          </CardContent>
         </Card>
       </div>
     </div>
