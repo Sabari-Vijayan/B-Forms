@@ -19,19 +19,29 @@ export function initAuthTokenGetter() {
 }
 
 export async function loginWithEmail(email: string) {
-  return customFetch("/api/auth/login", {
+  return customFetch<{ success: boolean; message: string }>("/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email }),
   });
 }
 
+export async function verifyOtp(email: string, token: string) {
+  const data = await customFetch<{ access_token: string; user: { id: string; email: string } }>(
+    "/api/auth/verify",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, token }),
+    }
+  );
+  setStoredToken(data.access_token);
+  return data;
+}
+
 export async function logout() {
-  const token = getStoredToken();
-  if (token) {
-    try {
-      await customFetch("/api/auth/logout", { method: "POST" });
-    } catch {}
-  }
+  try {
+    await customFetch("/api/auth/logout", { method: "POST" });
+  } catch {}
   clearStoredToken();
 }
