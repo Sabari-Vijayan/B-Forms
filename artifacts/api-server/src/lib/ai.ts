@@ -43,7 +43,7 @@ export interface AIGeneratedForm {
 
 export async function generateFormFromPrompt(prompt: string): Promise<AIGeneratedForm> {
   const model = genAI.getGenerativeModel({
-    model: "gemini-1.5-flash-latest",
+    model: "gemini-2.5-flash-lite",
     generationConfig: { responseMimeType: "application/json" },
     systemInstruction: GENERATE_SYSTEM_PROMPT,
   });
@@ -67,7 +67,7 @@ export async function translateFields(
   sourceLanguage: string
 ): Promise<Record<string, { label: string; placeholder?: string; options?: string[] }>> {
   const model = genAI.getGenerativeModel({
-    model: "gemini-1.5-flash-latest",
+    model: "gemini-2.5-flash-lite",
     generationConfig: { responseMimeType: "application/json" },
   });
 
@@ -103,7 +103,7 @@ export async function translateResponse(
   if (fromLanguage === toLanguage) return responses;
 
   const model = genAI.getGenerativeModel({
-    model: "gemini-1.5-flash-latest",
+    model: "gemini-2.5-flash-lite",
     generationConfig: { responseMimeType: "application/json" },
   });
 
