@@ -1,0 +1,60 @@
+    req: {
+      "id": 22,
+      "method": "POST",
+      "url": "/api/ai/generate"
+    }
+    res: {
+      "statusCode": 500
+    }
+    responseTime: 530
+    err: {
+      "type": "Error",
+      "message": "failed with status code 500",
+      "stack":
+          Error: failed with status code 500
+              at onResFinished (/home/runner/workspace/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:115:39)
+              at ServerResponse.onResponseComplete (/home/runner/workspace/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:178:14)
+              at ServerResponse.emit (node:events:520:35)
+              at onFinish (node:_http_outgoing:1026:10)
+              at callback (node:internal/streams/writable:764:21)
+              at afterWrite (node:internal/streams/writable:708:5)
+              at afterWriteTick (node:internal/streams/writable:694:10)
+              at process.processTicksAndRejections (node:internal/process/task_queues:88:21)
+    }
+[15:21:06.805] ERROR (478): Form generation failed
+    req: {
+      "id": 23,
+      "method": "POST",
+      "url": "/api/ai/generate"
+    }
+    err: {
+      "type": "GoogleGenerativeAIFetchError",
+      "message": "[GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent: [404 Not Found] models/gemini-1.5-flash-latest is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.",
+      "stack":
+          Error: [GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent: [404 Not Found] models/gemini-1.5-flash-latest is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.
+              at handleResponseNotOk (file:///home/runner/workspace/node_modules/.pnpm/@google+generative-ai@0.24.1/node_modules/@google/generative-ai/dist/index.mjs:432:11)
+              at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+              at async makeRequest (file:///home/runner/workspace/node_modules/.pnpm/@google+generative-ai@0.24.1/node_modules/@google/generative-ai/dist/index.mjs:401:9)
+              at async generateContent (file:///home/runner/workspace/node_modules/.pnpm/@google+generative-ai@0.24.1/node_modules/@google/generative-ai/dist/index.mjs:865:22)
+              at async generateFormFromPrompt (/home/runner/workspace/artifacts/api-server/src/lib/ai.ts:51:18)
+              at async <anonymous> (/home/runner/workspace/artifacts/api-server/src/routes/forms.ts:388:18)
+      "status": 404,
+      "statusText": "Not Found"
+    }
+[15:21:06.806] INFO (478): request errored
+    req: {
+      "id": 23,
+      "method": "POST",
+      "url": "/api/ai/generate"
+    }
+    res: {
+      "statusCode": 500
+    }
+    responseTime: 336
+    err: {
+      "type": "Error",
+      "message": "failed with status code 500",
+      "stack":
+          Error: failed with status code 500
+              at onResFinished (/home/runner/workspace/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:115:39)
+              at ServerResponse.onResponseComplete (/home/runner/workspace/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:178:14)
