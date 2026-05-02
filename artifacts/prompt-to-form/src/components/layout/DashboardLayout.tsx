@@ -22,9 +22,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   useEffect(() => {
     if (!isLoading && (error || !user)) {
-      setLocation("/login");
+      const intended = location !== "/login" ? location : "/";
+      setLocation(`/login?redirect=${encodeURIComponent(intended)}`);
     }
-  }, [user, isLoading, error, setLocation]);
+  }, [user, isLoading, error, setLocation, location]);
 
   const handleLogout = async () => {
     try {
