@@ -50,7 +50,7 @@ router.post("/public/forms/:slug/submit", async (req, res) => {
 
   const { data: form } = await admin
     .from("forms")
-    .select("id, original_language, status, response_limit, closes_at")
+    .select("id, original_language, preferred_language, status, response_limit, closes_at")
     .eq("slug", req.params.slug)
     .eq("status", "published")
     .single();
@@ -98,15 +98,24 @@ router.post("/public/forms/:slug/submit", async (req, res) => {
     return;
   }
 
-  translateResponse(responses, respondentLanguage, form.original_language)
-    .then(async (translated) => {
-      const status = respondentLanguage === form.original_language ? "skipped" : "done";
-      await admin
-        .from("submissions")
-        .update({ translated_responses_json: translated, translation_status: status })
-        .eq("id", submission.id);
-    })
-    .catch(() => {});
+  const creatorLang = form.preferred_language || form.original_language;
+  const needsTranslation = respondentLanguage !== creatorLang;
+
+  if (!needsTranslation) {
+    await admin
+      .from("submissions")
+      .update({ translation_status: "skipped" })
+      .eq("id", submission.id);
+  } else {
+    translateResponse(responses, respondentLanguage, creatorLang)
+      .then(async (translated) => {
+        await admin
+          .from("submissions")
+          .update({ translated_responses_json: translated, translation_status: "done" })
+          .eq("id", submission.id);
+      })
+      .catch(() => {});
+  }
 
   res.status(201).json({
     id: submission.id,

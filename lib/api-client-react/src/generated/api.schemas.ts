@@ -33,6 +33,7 @@ export interface Form {
   description?: string | null;
   slug: string;
   originalLanguage: string;
+  preferredLanguage?: string | null;
   status: FormStatus;
   supportedLanguages: string[];
   responseLimit?: number | null;
@@ -116,6 +117,7 @@ export interface FormWithFields {
   description?: string | null;
   slug: string;
   originalLanguage: string;
+  preferredLanguage?: string | null;
   status: FormWithFieldsStatus;
   supportedLanguages: string[];
   responseLimit?: number | null;
@@ -194,6 +196,7 @@ export interface UpdateFormBody {
   title?: string;
   description?: string | null;
   status?: UpdateFormBodyStatus;
+  preferredLanguage?: string | null;
   supportedLanguages?: string[];
   responseLimit?: number | null;
   closesAt?: string | null;

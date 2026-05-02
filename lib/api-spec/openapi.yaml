@@ -517,6 +517,9 @@ components:
           type: string
         originalLanguage:
           type: string
+        preferredLanguage:
+          type: string
+          nullable: true
         status:
           type: string
           enum: [draft, published, closed]
@@ -615,6 +618,9 @@ components:
           type: string
         originalLanguage:
           type: string
+        preferredLanguage:
+          type: string
+          nullable: true
         status:
           type: string
           enum: [draft, published, closed]
@@ -721,6 +727,9 @@ components:
         status:
           type: string
           enum: [draft, published, closed]
+        preferredLanguage:
+          type: string
+          nullable: true
         supportedLanguages:
           type: array
           items:

@@ -27,6 +27,7 @@ router.get("/forms", requireAuth, async (req: AuthenticatedRequest, res) => {
       description: f.description,
       slug: f.slug,
       originalLanguage: f.original_language,
+      preferredLanguage: f.preferred_language ?? null,
       status: f.status,
       supportedLanguages: f.supported_languages || [],
       responseLimit: f.response_limit,
@@ -137,6 +138,7 @@ router.get("/forms/:id", requireAuth, async (req: AuthenticatedRequest, res) => 
     description: form.description,
     slug: form.slug,
     originalLanguage: form.original_language,
+    preferredLanguage: form.preferred_language ?? null,
     status: form.status,
     supportedLanguages: form.supported_languages || [],
     responseLimit: form.response_limit,
@@ -157,7 +159,7 @@ router.get("/forms/:id", requireAuth, async (req: AuthenticatedRequest, res) => 
 
 router.patch("/forms/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
   const admin = createAdminClient();
-  const { title, description, status, supportedLanguages, responseLimit, closesAt } = req.body;
+  const { title, description, status, supportedLanguages, preferredLanguage, responseLimit, closesAt } = req.body;
 
   const { data: existing } = await createSupabaseClient(req.accessToken)
     .from("forms")
@@ -176,6 +178,7 @@ router.patch("/forms/:id", requireAuth, async (req: AuthenticatedRequest, res) =
   if (description !== undefined) updates.description = description;
   if (status !== undefined) updates.status = status;
   if (supportedLanguages !== undefined) updates.supported_languages = supportedLanguages;
+  if (preferredLanguage !== undefined) updates.preferred_language = preferredLanguage;
   if (responseLimit !== undefined) updates.response_limit = responseLimit;
   if (closesAt !== undefined) updates.closes_at = closesAt;
 
@@ -198,6 +201,7 @@ router.patch("/forms/:id", requireAuth, async (req: AuthenticatedRequest, res) =
     description: form.description,
     slug: form.slug,
     originalLanguage: form.original_language,
+    preferredLanguage: form.preferred_language ?? null,
     status: form.status,
     supportedLanguages: form.supported_languages || [],
     responseLimit: form.response_limit,

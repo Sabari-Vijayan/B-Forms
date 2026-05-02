@@ -64,6 +64,7 @@ export default function FormEditor() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [supportedLanguages, setSupportedLanguages] = useState<string[]>([]);
+  const [preferredLanguage, setPreferredLanguage] = useState<string>("");
 
   // Init settings state
   useState(() => {
@@ -71,6 +72,7 @@ export default function FormEditor() {
       setTitle(form.title);
       setDescription(form.description || "");
       setSupportedLanguages(form.supportedLanguages);
+      setPreferredLanguage(form.preferredLanguage || form.originalLanguage);
     }
   });
 
@@ -93,7 +95,8 @@ export default function FormEditor() {
         data: {
           title,
           description,
-          supportedLanguages
+          supportedLanguages,
+          preferredLanguage: preferredLanguage || null,
         }
       });
       toast.success("Settings saved successfully");
@@ -287,29 +290,63 @@ export default function FormEditor() {
                   <Label>Description</Label>
                   <Textarea value={description} onChange={(e) => setDescription(e.target.value)} />
                 </div>
-                <div className="space-y-3">
-                  <Label>Supported Languages</Label>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 bg-muted/30 p-4 rounded-lg">
-                    {SUPPORTED_LANGUAGES.map((lang) => (
-                      <div key={lang.code} className="flex items-center space-x-2">
-                        <Checkbox 
-                          id={`lang-${lang.code}`} 
-                          checked={supportedLanguages.includes(lang.code)}
-                          disabled={lang.code === form.originalLanguage}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              setSupportedLanguages([...supportedLanguages, lang.code]);
-                            } else {
-                              setSupportedLanguages(supportedLanguages.filter(c => c !== lang.code));
-                            }
-                          }}
-                        />
-                        <Label htmlFor={`lang-${lang.code}`} className="font-normal cursor-pointer">
-                          {lang.name}
-                          {lang.code === form.originalLanguage && " (Original)"}
-                        </Label>
-                      </div>
-                    ))}
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Your Preferred Language</Label>
+                    <p className="text-xs text-muted-foreground mt-1 mb-3">
+                      Responses submitted in this language will not be translated — you can already read them.
+                    </p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 border border-border p-3">
+                      {SUPPORTED_LANGUAGES.filter(l => supportedLanguages.includes(l.code) || l.code === form.originalLanguage).map((lang) => {
+                        const isSelected = (preferredLanguage || form.originalLanguage) === lang.code;
+                        return (
+                          <button
+                            key={lang.code}
+                            type="button"
+                            onClick={() => setPreferredLanguage(lang.code)}
+                            className={`flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors ${
+                              isSelected
+                                ? "bg-foreground text-background"
+                                : "hover:bg-muted/50 text-foreground"
+                            }`}
+                          >
+                            {lang.name}
+                            {lang.code === form.originalLanguage && (
+                              <span className={`text-xs ml-auto ${isSelected ? "text-background/60" : "text-muted-foreground"}`}>original</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Supported Respondent Languages</Label>
+                    <p className="text-xs text-muted-foreground mt-1 mb-3">
+                      Languages your respondents can use to fill out this form.
+                    </p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 border border-border p-3">
+                      {SUPPORTED_LANGUAGES.map((lang) => (
+                        <div key={lang.code} className="flex items-center space-x-2 px-1 py-1">
+                          <Checkbox
+                            id={`lang-${lang.code}`}
+                            checked={supportedLanguages.includes(lang.code)}
+                            disabled={lang.code === form.originalLanguage}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setSupportedLanguages([...supportedLanguages, lang.code]);
+                              } else {
+                                setSupportedLanguages(supportedLanguages.filter(c => c !== lang.code));
+                              }
+                            }}
+                          />
+                          <Label htmlFor={`lang-${lang.code}`} className="font-normal cursor-pointer text-sm">
+                            {lang.name}
+                            {lang.code === form.originalLanguage && <span className="text-muted-foreground ml-1">(original)</span>}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </CardContent>
