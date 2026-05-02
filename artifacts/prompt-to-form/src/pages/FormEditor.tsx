@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useLocation, useParams } from "wouter";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { 
@@ -49,10 +49,15 @@ export default function FormEditor() {
   const id = params.id as string;
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
-  
+
+  // Declare activeTab early so it can be used in query options
+  const [activeTab, setActiveTab] = useState("fields");
+
   const { data: form, isLoading: isFormLoading } = useGetForm(id, { query: { enabled: !!id } });
   const { data: fields, isLoading: isFieldsLoading } = useListFormFields(id, { query: { enabled: !!id } });
-  const { data: submissions, isLoading: isSubmissionsLoading } = useListSubmissions(id, { query: { enabled: !!id } });
+  const { data: submissions, isLoading: isSubmissionsLoading, dataUpdatedAt } = useListSubmissions(id, {
+    query: { enabled: !!id, refetchInterval: activeTab === "responses" ? 20000 : false },
+  });
 
   const updateForm = useUpdateForm();
   const createField = useCreateFormField();
@@ -60,8 +65,28 @@ export default function FormEditor() {
   const deleteField = useDeleteFormField();
   const reorderFields = useReorderFields();
 
-  const [activeTab, setActiveTab] = useState("fields");
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
+
+  // Live polling: track count when responses tab first opens to show "N new" badge
+  const baselineCountRef = useRef<number | null>(null);
+  const [newResponseCount, setNewResponseCount] = useState(0);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+
+  useEffect(() => {
+    if (activeTab === "responses" && baselineCountRef.current === null) {
+      baselineCountRef.current = submissions?.length ?? 0;
+    }
+  }, [activeTab, submissions]);
+
+  useEffect(() => {
+    if (submissions !== undefined) {
+      if (baselineCountRef.current !== null) {
+        const diff = submissions.length - baselineCountRef.current;
+        setNewResponseCount(diff > 0 ? diff : 0);
+      }
+      if (dataUpdatedAt) setLastUpdatedAt(new Date(dataUpdatedAt));
+    }
+  }, [submissions?.length, dataUpdatedAt]);
 
   // Settings State
   const [title, setTitle] = useState("");
@@ -440,9 +465,26 @@ export default function FormEditor() {
                 <div className="space-y-8">
                   {/* Header */}
                   <div className="flex items-center justify-between">
-                    <p className="text-sm text-muted-foreground">
-                      {total} {total === 1 ? "response" : "responses"} collected
-                    </p>
+                    <div className="flex items-center gap-3">
+                      <p className="text-sm text-muted-foreground">
+                        {total} {total === 1 ? "response" : "responses"} collected
+                      </p>
+                      {/* Live indicator */}
+                      <div className="flex items-center gap-1.5">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-foreground opacity-40" />
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-foreground" />
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {lastUpdatedAt ? `Updated ${format(lastUpdatedAt, "HH:mm:ss")}` : "Live"}
+                        </span>
+                      </div>
+                      {newResponseCount > 0 && (
+                        <span className="text-xs font-medium bg-foreground text-background px-2 py-0.5">
+                          +{newResponseCount} new
+                        </span>
+                      )}
+                    </div>
                     <button
                       onClick={handleExportCSV}
                       disabled={!total}
@@ -573,7 +615,7 @@ export default function FormEditor() {
                                   </th>
                                 ))}
                                 <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">Translation</th>
-                                <th className="px-4 py-3 w-8" />
+                                <th className="px-4 py-3 w-20" />
                               </tr>
                             </thead>
                             <tbody>
@@ -614,7 +656,13 @@ export default function FormEditor() {
                                       </span>
                                     </td>
                                     <td className="px-4 py-3">
-                                      <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${isSelected ? "rotate-90" : ""}`} />
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); setSelectedSubmission(isSelected ? null : sub); }}
+                                        className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors border border-border hover:border-foreground px-2 py-1 whitespace-nowrap"
+                                      >
+                                        View
+                                        <ChevronRight className="w-3 h-3" />
+                                      </button>
                                     </td>
                                   </tr>
                                 );
