@@ -24,8 +24,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, Settings, List, FileSpreadsheet, Share2, GripVertical, Trash2, Plus, Type, AlignLeft, CheckSquare, ListChecks, Star, Calendar, Mail, Phone, Download, X, ChevronRight } from "lucide-react";
 import type { Submission } from "@workspace/api-client-react/src/generated/api.schemas";
 import { SUPPORTED_LANGUAGES } from "@/lib/constants";
-import { format } from "date-fns";
+import { format, subDays, startOfDay } from "date-fns";
 import { toast } from "sonner";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { useQueryClient } from "@tanstack/react-query";
 import type { FormFieldFieldType } from "@workspace/api-client-react/src/generated/api.schemas";
 
@@ -362,20 +363,61 @@ export default function FormEditor() {
             {(() => {
               const orderedFields = (fields || []).slice().sort((a, b) => a.orderIndex - b.orderIndex);
 
+              // ── Analytics computed client-side ──────────────────────────────
+              const subs = submissions || [];
+              const total = subs.length;
+
+              // 7-day weekly trend
+              const today = startOfDay(new Date());
+              const weeklyTrend = Array.from({ length: 7 }, (_, i) => {
+                const day = subDays(today, 6 - i);
+                const dayStr = format(day, "MMM d");
+                const count = subs.filter(s => format(startOfDay(new Date(s.submittedAt)), "MMM d") === dayStr).length;
+                return { date: dayStr, count };
+              });
+              const weekTotal = weeklyTrend.reduce((a, d) => a + d.count, 0);
+              const avgPerDay = total > 0 ? (weekTotal / 7).toFixed(1) : "0";
+
+              // Language breakdown
+              const langCounts: Record<string, number> = {};
+              subs.forEach(s => { langCounts[s.respondentLanguage] = (langCounts[s.respondentLanguage] || 0) + 1; });
+              const langBreakdown = Object.entries(langCounts)
+                .map(([code, count]) => ({ code, name: SUPPORTED_LANGUAGES.find(l => l.code === code)?.name || code, count }))
+                .sort((a, b) => b.count - a.count);
+              const topLang = langBreakdown[0];
+              const maxLangCount = topLang?.count || 1;
+
+              // Per-field answer distribution for choice + rating fields
+              const choiceFields = orderedFields.filter(f =>
+                f.fieldType === "single_choice" || f.fieldType === "multi_choice" || f.fieldType === "rating"
+              );
+              const fieldStats = choiceFields.map(f => {
+                const tally: Record<string, number> = {};
+                subs.forEach(s => {
+                  const raw = (s.rawResponsesJson || {}) as Record<string, any>;
+                  const val = raw[f.id];
+                  if (val == null) return;
+                  const vals = Array.isArray(val) ? val : [val];
+                  vals.forEach(v => { tally[String(v)] = (tally[String(v)] || 0) + 1; });
+                });
+                const options = f.fieldType === "rating"
+                  ? ["1","2","3","4","5"]
+                  : (f.optionsJson || Object.keys(tally));
+                const data = options.map(opt => ({ label: opt, count: tally[opt] || 0 }));
+                const maxCount = Math.max(...data.map(d => d.count), 1);
+                return { field: f, data, maxCount };
+              }).filter(fs => fs.data.some(d => d.count > 0));
+
+              // ── CSV export ──────────────────────────────────────────────────
               const handleExportCSV = () => {
-                if (!submissions?.length) return;
+                if (!subs.length) return;
                 const metaCols = ["Submitted At", "Language", "Translation"];
                 const fieldCols = orderedFields.map(f => f.label);
                 const header = [...metaCols, ...fieldCols];
-
-                const rows = submissions.map(sub => {
+                const rows = subs.map(sub => {
                   const data = sub.translatedResponsesJson || sub.rawResponsesJson || {};
-                  const langName = SUPPORTED_LANGUAGES.find(l => l.code === sub.respondentLanguage)?.name || sub.respondentLanguage;
-                  const meta = [
-                    format(new Date(sub.submittedAt), "yyyy-MM-dd HH:mm"),
-                    langName,
-                    sub.translationStatus,
-                  ];
+                  const lName = SUPPORTED_LANGUAGES.find(l => l.code === sub.respondentLanguage)?.name || sub.respondentLanguage;
+                  const meta = [format(new Date(sub.submittedAt), "yyyy-MM-dd HH:mm"), lName, sub.translationStatus];
                   const answers = orderedFields.map(f => {
                     const val = (data as Record<string, any>)[f.id];
                     if (Array.isArray(val)) return val.join("; ");
@@ -383,7 +425,6 @@ export default function FormEditor() {
                   });
                   return [...meta, ...answers];
                 });
-
                 const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
                 const csv = [header, ...rows].map(r => r.map(escape).join(",")).join("\n");
                 const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -396,17 +437,15 @@ export default function FormEditor() {
               };
 
               return (
-                <div>
-                  {/* Header row */}
-                  <div className="flex items-center justify-between mb-6">
-                    <div>
-                      <p className="text-sm text-muted-foreground">
-                        {submissions?.length ?? 0} {submissions?.length === 1 ? "response" : "responses"} collected
-                      </p>
-                    </div>
+                <div className="space-y-8">
+                  {/* Header */}
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">
+                      {total} {total === 1 ? "response" : "responses"} collected
+                    </p>
                     <button
                       onClick={handleExportCSV}
-                      disabled={!submissions?.length}
+                      disabled={!total}
                       className="flex items-center gap-2 px-4 py-2 text-sm border border-border hover:border-foreground text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <Download className="w-4 h-4" />
@@ -418,74 +457,173 @@ export default function FormEditor() {
                     <div className="flex justify-center py-16">
                       <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
                     </div>
-                  ) : !submissions?.length ? (
+                  ) : !total ? (
                     <div className="border border-border py-20 text-center">
                       <FileSpreadsheet className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
                       <p className="text-sm font-medium text-foreground">No responses yet</p>
                       <p className="text-xs text-muted-foreground mt-1">Share your form to start collecting responses.</p>
                     </div>
                   ) : (
-                    <div className="border border-border overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b border-border bg-muted/40">
-                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">#</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">Date</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">Language</th>
-                            {orderedFields.map(f => (
-                              <th key={f.id} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap max-w-[200px]">
-                                <span className="block truncate max-w-[180px]">{f.label}</span>
-                              </th>
+                    <>
+                      {/* ── Stat tiles ── */}
+                      <div className="grid grid-cols-3 border border-border divide-x divide-border">
+                        {[
+                          { label: "Total Responses", value: total },
+                          { label: "Avg / Day (7d)", value: avgPerDay },
+                          { label: "Top Language", value: topLang?.name || "—" },
+                        ].map(({ label, value }) => (
+                          <div key={label} className="px-6 py-5">
+                            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">{label}</p>
+                            <p className="text-2xl font-semibold text-foreground">{value}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* ── Charts row ── */}
+                      <div className="grid grid-cols-2 gap-6">
+                        {/* Weekly trend */}
+                        <div className="border border-border p-5">
+                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-4">Responses — Last 7 Days</p>
+                          <ResponsiveContainer width="100%" height={140}>
+                            <BarChart data={weeklyTrend} barSize={20}>
+                              <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+                              <YAxis hide allowDecimals={false} />
+                              <Tooltip
+                                contentStyle={{ border: "1px solid #e5e7eb", borderRadius: 0, fontSize: 12, padding: "4px 10px" }}
+                                cursor={{ fill: "rgba(0,0,0,0.04)" }}
+                              />
+                              <Bar dataKey="count" radius={0}>
+                                {weeklyTrend.map((entry, i) => (
+                                  <Cell key={i} fill={i === 6 ? "#0f0f0f" : "#d1d5db"} />
+                                ))}
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+
+                        {/* Language breakdown */}
+                        <div className="border border-border p-5">
+                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-4">Respondent Languages</p>
+                          {langBreakdown.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">No data</p>
+                          ) : (
+                            <div className="space-y-3">
+                              {langBreakdown.map(({ code, name, count }) => (
+                                <div key={code}>
+                                  <div className="flex justify-between text-xs mb-1">
+                                    <span className="font-medium text-foreground">{name}</span>
+                                    <span className="text-muted-foreground">{count} ({Math.round((count / total) * 100)}%)</span>
+                                  </div>
+                                  <div className="h-2 bg-muted border border-border">
+                                    <div
+                                      className="h-full bg-foreground transition-all"
+                                      style={{ width: `${(count / maxLangCount) * 100}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* ── Per-field distributions ── */}
+                      {fieldStats.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-4">Answer Distribution</p>
+                          <div className="grid grid-cols-2 gap-4">
+                            {fieldStats.map(({ field: f, data: fData, maxCount }) => (
+                              <div key={f.id} className="border border-border p-4">
+                                <p className="text-xs font-medium text-foreground mb-3 truncate" title={f.label}>{f.label}</p>
+                                <div className="space-y-2">
+                                  {fData.map(({ label, count }) => (
+                                    <div key={label}>
+                                      <div className="flex justify-between text-xs mb-1">
+                                        <span className="text-muted-foreground truncate max-w-[140px]" title={label}>{label}</span>
+                                        <span className="text-foreground font-medium ml-2 shrink-0">{count}</span>
+                                      </div>
+                                      <div className="h-1.5 bg-muted border border-border">
+                                        <div
+                                          className="h-full bg-foreground transition-all"
+                                          style={{ width: `${(count / maxCount) * 100}%` }}
+                                        />
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
                             ))}
-                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">Translation</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {submissions.map((sub, idx) => {
-                            const data = (sub.translatedResponsesJson || sub.rawResponsesJson || {}) as Record<string, any>;
-                            const subLangName = SUPPORTED_LANGUAGES.find(l => l.code === sub.respondentLanguage)?.name || sub.respondentLanguage;
-                            const isSelected = selectedSubmission?.id === sub.id;
-                            return (
-                              <tr
-                                key={sub.id}
-                                onClick={() => setSelectedSubmission(isSelected ? null : sub)}
-                                className={`border-b border-border last:border-0 transition-colors cursor-pointer ${isSelected ? "bg-muted/40" : "hover:bg-muted/20"}`}
-                              >
-                                <td className="px-4 py-3 text-muted-foreground">{idx + 1}</td>
-                                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                                  {format(new Date(sub.submittedAt), "MMM d, yyyy · HH:mm")}
-                                </td>
-                                <td className="px-4 py-3 whitespace-nowrap">
-                                  <span className="border border-border px-2 py-0.5 text-xs font-medium">{subLangName}</span>
-                                </td>
-                                {orderedFields.map(f => {
-                                  const val = data[f.id];
-                                  const display = Array.isArray(val) ? val.join(", ") : val != null ? String(val) : "";
-                                  return (
-                                    <td key={f.id} className="px-4 py-3 max-w-[200px]">
-                                      <span className="block truncate" title={display}>{display || <span className="text-muted-foreground/50">—</span>}</span>
-                                    </td>
-                                  );
-                                })}
-                                <td className="px-4 py-3 whitespace-nowrap">
-                                  <span className={`text-xs font-medium uppercase tracking-wide ${
-                                    sub.translationStatus === "done" ? "text-foreground" :
-                                    sub.translationStatus === "skipped" ? "text-muted-foreground" :
-                                    sub.translationStatus === "pending" ? "text-muted-foreground" :
-                                    "text-destructive"
-                                  }`}>
-                                    {sub.translationStatus}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3">
-                                  <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${isSelected ? "rotate-90" : ""}`} />
-                                </td>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ── Individual responses table ── */}
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-4">Individual Responses</p>
+                        <div className="border border-border overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-border bg-muted/40">
+                                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">#</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">Date</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">Language</th>
+                                {orderedFields.map(f => (
+                                  <th key={f.id} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap max-w-[200px]">
+                                    <span className="block truncate max-w-[180px]">{f.label}</span>
+                                  </th>
+                                ))}
+                                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">Translation</th>
+                                <th className="px-4 py-3 w-8" />
                               </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
+                            </thead>
+                            <tbody>
+                              {subs.map((sub, idx) => {
+                                const data = (sub.translatedResponsesJson || sub.rawResponsesJson || {}) as Record<string, any>;
+                                const subLangName = SUPPORTED_LANGUAGES.find(l => l.code === sub.respondentLanguage)?.name || sub.respondentLanguage;
+                                const isSelected = selectedSubmission?.id === sub.id;
+                                return (
+                                  <tr
+                                    key={sub.id}
+                                    onClick={() => setSelectedSubmission(isSelected ? null : sub)}
+                                    className={`border-b border-border last:border-0 transition-colors cursor-pointer ${isSelected ? "bg-muted/40" : "hover:bg-muted/20"}`}
+                                  >
+                                    <td className="px-4 py-3 text-muted-foreground">{idx + 1}</td>
+                                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                                      {format(new Date(sub.submittedAt), "MMM d, yyyy · HH:mm")}
+                                    </td>
+                                    <td className="px-4 py-3 whitespace-nowrap">
+                                      <span className="border border-border px-2 py-0.5 text-xs font-medium">{subLangName}</span>
+                                    </td>
+                                    {orderedFields.map(f => {
+                                      const val = data[f.id];
+                                      const display = Array.isArray(val) ? val.join(", ") : val != null ? String(val) : "";
+                                      return (
+                                        <td key={f.id} className="px-4 py-3 max-w-[200px]">
+                                          <span className="block truncate" title={display}>{display || <span className="text-muted-foreground/50">—</span>}</span>
+                                        </td>
+                                      );
+                                    })}
+                                    <td className="px-4 py-3 whitespace-nowrap">
+                                      <span className={`text-xs font-medium uppercase tracking-wide ${
+                                        sub.translationStatus === "done" ? "text-foreground" :
+                                        sub.translationStatus === "skipped" ? "text-muted-foreground" :
+                                        sub.translationStatus === "pending" ? "text-muted-foreground" :
+                                        "text-destructive"
+                                      }`}>
+                                        {sub.translationStatus}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${isSelected ? "rotate-90" : ""}`} />
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </>
                   )}
                 </div>
               );
