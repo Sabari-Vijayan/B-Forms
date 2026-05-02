@@ -1,0 +1,1046 @@
+# Prompt-to-Form: Full Build Specification
+
+You are building a multilingual "Prompt-to-Form" web application — a Google Forms alternative where AI generates forms from a natural language prompt and handles all translation automatically. This document is the complete specification. Follow it exactly. Do not make architectural decisions that contradict it.
+
+---
+
+## 1. Project Overview
+
+### What It Does
+
+1. **Creator flow:** An authenticated user types a prompt in any language (e.g., "Create a customer feedback form for a taco shop" or "ഒരു കോഫി ഷോപ്പിനായി ഒരു ഫീഡ്ബാക്ക് ഫോം ഉണ്ടാക്കൂ"). The AI generates a structured form with typed fields.
+2. **Editing:** The creator reviews and edits the AI-generated form using a drag-and-drop field editor before publishing.
+3. **Publishing:** On publish, the system pre-translates all form fields into the creator's chosen supported languages and stores the translations. The form gets a public shareable URL and QR code.
+4. **Respondent flow:** Anyone with the link visits the public form, chooses their preferred language from a dropdown, and submits their answers in that language.
+5. **Response handling:** On submission, an async background job translates the respondent's answers back into the creator's original language and stores them. The creator's dashboard always shows responses in their own language.
+
+### Core Value Proposition
+
+Language-transparent data collection. Creators design once, respondents answer in any language, creators read everything in their own language. No manual translation at any point.
+
+---
+
+## 2. Technology Stack
+
+Use exactly this stack. Do not substitute alternatives.
+
+| Layer | Choice |
+|---|---|
+| Framework | Next.js 14+ with App Router |
+| Language | TypeScript (strict mode) |
+| Styling | Tailwind CSS |
+| UI Components | Shadcn/ui |
+| Database + Auth | Supabase (PostgreSQL + Supabase Auth) |
+| AI Model | Google Gemini 1.5 Flash (`gemini-1.5-flash-latest`) |
+| AI SDK | `@google/generative-ai` |
+| Form engine | `react-hook-form` + `zod` |
+| Drag and drop | `@dnd-kit/core` + `@dnd-kit/sortable` |
+| Language detection | `franc-min` |
+| CSV export | `papaparse` |
+| QR code | `qrcode.react` |
+| Slug generation | `nanoid` |
+| Supabase client | `@supabase/supabase-js` + `@supabase/ssr` |
+
+---
+
+## 3. Environment Variables
+
+Create a `.env.local` file with:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+GEMINI_API_KEY=
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+The `SUPABASE_SERVICE_ROLE_KEY` is used only in server-side API routes and Edge Functions (bypasses RLS for admin operations like async translation jobs). Never expose it to the client.
+
+---
+
+## 4. Directory Structure
+
+```
+src/
+  app/
+    (auth)/
+      login/
+        page.tsx               # Magic link login page
+      auth/
+        callback/
+          route.ts             # Supabase auth callback handler
+    (dashboard)/
+      layout.tsx               # Auth-protected layout with sidebar
+      page.tsx                 # Dashboard home: list of user's forms
+      create/
+        page.tsx               # Prompt input → AI generation → form preview
+      forms/
+        [id]/
+          page.tsx             # Form detail: fields, settings, responses tabs
+          edit/
+            page.tsx           # Drag-and-drop field editor
+          share/
+            page.tsx           # Share link, QR code, embed code
+          responses/
+            page.tsx           # Response table with translations, CSV export
+    f/
+      [slug]/
+        page.tsx               # Public form page (unauthenticated)
+    api/
+      generate/
+        route.ts               # POST: prompt → AI → structured form JSON
+      translate-form/
+        route.ts               # POST: pre-translate all fields on publish
+      translate-response/
+        route.ts               # POST: called by Supabase webhook on submission insert
+  lib/
+    ai/
+      generate-form.ts         # Gemini call: prompt → GeneratedFormSchema
+      translate-fields.ts      # Gemini call: field map → translated field map
+      translate-response.ts    # Gemini call: raw answers → translated answers
+      detect-language.ts       # franc-min wrapper → BCP-47 tag
+      schema.ts                # Zod schemas for all AI inputs/outputs
+    db/
+      forms.ts                 # Typed Supabase queries for forms table
+      form-fields.ts           # Typed queries for form_fields table
+      form-translations.ts     # Typed queries for form_translations table
+      submissions.ts           # Typed queries for submissions table
+    supabase/
+      client.ts                # Browser Supabase client
+      server.ts                # Server Supabase client (cookies)
+      middleware.ts            # Auth middleware helper
+  components/
+    form-builder/
+      prompt-input.tsx         # Textarea + generate button + prompt examples
+      field-editor.tsx         # Drag-and-drop list of field cards
+      field-card.tsx           # Individual field: type, label, required toggle, delete
+      field-type-picker.tsx    # Icon grid for selecting field types
+    form-renderer/
+      form-view.tsx            # Public form: language toggle + rendered fields
+      language-selector.tsx    # Dropdown component for language selection
+      field-renderers/
+        short-text.tsx
+        long-text.tsx
+        single-choice.tsx
+        multi-choice.tsx
+        rating.tsx
+        date-field.tsx
+        email-field.tsx
+    dashboard/
+      form-list.tsx            # Grid of form cards
+      form-card.tsx            # Single form card with status badge
+      response-table.tsx       # Table of submissions with translation status
+      analytics-bar.tsx        # Response count, language breakdown
+      csv-export-button.tsx
+    share/
+      share-panel.tsx          # Public URL + copy button
+      qr-code.tsx              # QR code display
+      embed-code.tsx           # iframe snippet
+    ui/                        # Shadcn components (auto-generated)
+  types/
+    form.ts                    # All shared TypeScript types and Zod schemas
+  middleware.ts                # Next.js middleware for auth protection
+```
+
+---
+
+## 5. TypeScript Types and Zod Schemas
+
+Define all types in `src/types/form.ts`. This file is the single source of truth. All AI calls, database inserts, and form renderer components derive their types from here.
+
+```typescript
+import { z } from 'zod';
+
+// ── Field types ────────────────────────────────────────────────────────────────
+
+export const FieldTypeSchema = z.enum([
+  'short_text',
+  'long_text',
+  'single_choice',
+  'multi_choice',
+  'rating',
+  'date',
+  'email',
+  'phone',
+]);
+export type FieldType = z.infer<typeof FieldTypeSchema>;
+
+// ── AI output contract — what Gemini must return ──────────────────────────────
+
+export const AIGeneratedFieldSchema = z.object({
+  label: z.string().min(1),
+  field_type: FieldTypeSchema,
+  placeholder: z.string().optional(),
+  is_required: z.boolean(),
+  options: z.array(z.string()).optional(), // only for single_choice, multi_choice
+});
+
+export const AIGeneratedFormSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().optional(),
+  fields: z.array(AIGeneratedFieldSchema).min(1).max(20),
+});
+export type AIGeneratedForm = z.infer<typeof AIGeneratedFormSchema>;
+
+// ── Translation map shape ─────────────────────────────────────────────────────
+
+export const FieldTranslationSchema = z.object({
+  label: z.string(),
+  placeholder: z.string().optional(),
+  options: z.array(z.string()).optional(),
+});
+
+// form_translations.translations_json shape:
+// Record<field_id, FieldTranslation>
+export type FieldTranslationMap = Record<string, z.infer<typeof FieldTranslationSchema>>;
+
+// ── Form status ───────────────────────────────────────────────────────────────
+
+export type FormStatus = 'draft' | 'published' | 'closed';
+
+// ── Supported languages ───────────────────────────────────────────────────────
+
+export const SUPPORTED_LANGUAGES: Record<string, string> = {
+  en: 'English',
+  es: 'Español',
+  fr: 'Français',
+  de: 'Deutsch',
+  hi: 'हिन्दी',
+  ml: 'മലയാളം',
+  ta: 'தமிழ்',
+  ar: 'العربية',
+  zh: '中文',
+  pt: 'Português',
+  ja: '日本語',
+  ko: '한국어',
+};
+
+// ── Database row types ────────────────────────────────────────────────────────
+
+export interface FormRow {
+  id: string;
+  user_id: string;
+  title: string;
+  description: string | null;
+  slug: string;
+  original_language: string;
+  status: FormStatus;
+  supported_languages: string[];
+  response_limit: number | null;
+  closes_at: string | null;
+  created_at: string;
+}
+
+export interface FormFieldRow {
+  id: string;
+  form_id: string;
+  order_index: number;
+  field_type: FieldType;
+  label: string;
+  placeholder: string | null;
+  is_required: boolean;
+  options_json: string[] | null;
+  validation_json: Record<string, unknown> | null;
+}
+
+export interface FormTranslationRow {
+  id: string;
+  form_id: string;
+  language: string;
+  translations_json: FieldTranslationMap;
+  generated_at: string;
+}
+
+export interface SubmissionRow {
+  id: string;
+  form_id: string;
+  respondent_language: string;
+  raw_responses_json: Record<string, unknown>;
+  translated_responses_json: Record<string, unknown> | null;
+  translation_status: 'pending' | 'done' | 'skipped';
+  submitted_at: string;
+}
+```
+
+---
+
+## 6. Database Schema
+
+Run these migrations in Supabase SQL editor in order.
+
+### 6.1 Enums
+
+```sql
+CREATE TYPE form_status AS ENUM ('draft', 'published', 'closed');
+CREATE TYPE translation_status AS ENUM ('pending', 'done', 'skipped');
+CREATE TYPE field_type AS ENUM (
+  'short_text', 'long_text', 'single_choice', 'multi_choice',
+  'rating', 'date', 'email', 'phone'
+);
+```
+
+### 6.2 Forms table
+
+```sql
+CREATE TABLE forms (
+  id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id            uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  title              text NOT NULL,
+  description        text,
+  slug               text UNIQUE NOT NULL,
+  original_language  text NOT NULL DEFAULT 'en',
+  status             form_status NOT NULL DEFAULT 'draft',
+  supported_languages text[] NOT NULL DEFAULT '{}',
+  response_limit     int4,
+  closes_at          timestamptz,
+  created_at         timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE forms ENABLE ROW LEVEL SECURITY;
+
+-- Creators can only see and modify their own forms
+CREATE POLICY "owner_all" ON forms
+  USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
+```
+
+### 6.3 Form fields table
+
+```sql
+CREATE TABLE form_fields (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  form_id          uuid NOT NULL REFERENCES forms(id) ON DELETE CASCADE,
+  order_index      int4 NOT NULL,
+  field_type       field_type NOT NULL,
+  label            text NOT NULL,
+  placeholder      text,
+  is_required      boolean NOT NULL DEFAULT false,
+  options_json     jsonb,    -- null for text/date/email; string[] for choice fields
+  validation_json  jsonb     -- e.g. { "min": 1, "max": 500 } for text length
+);
+
+ALTER TABLE form_fields ENABLE ROW LEVEL SECURITY;
+
+-- Creator can manage their form's fields
+CREATE POLICY "owner_all" ON form_fields
+  USING (
+    EXISTS (SELECT 1 FROM forms WHERE id = form_id AND user_id = auth.uid())
+  )
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM forms WHERE id = form_id AND user_id = auth.uid())
+  );
+
+-- Anyone can read fields of a published form
+CREATE POLICY "public_read_published" ON form_fields
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM forms
+      WHERE id = form_id AND status = 'published'
+    )
+  );
+```
+
+### 6.4 Form translations table
+
+```sql
+CREATE TABLE form_translations (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  form_id           uuid NOT NULL REFERENCES forms(id) ON DELETE CASCADE,
+  language          text NOT NULL,
+  translations_json jsonb NOT NULL, -- { field_id: { label, placeholder, options[] } }
+  generated_at      timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(form_id, language)
+);
+
+ALTER TABLE form_translations ENABLE ROW LEVEL SECURITY;
+
+-- Creator can read/write translations for their forms
+CREATE POLICY "owner_all" ON form_translations
+  USING (
+    EXISTS (SELECT 1 FROM forms WHERE id = form_id AND user_id = auth.uid())
+  )
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM forms WHERE id = form_id AND user_id = auth.uid())
+  );
+
+-- Anyone can read translations of published forms
+CREATE POLICY "public_read_published" ON form_translations
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM forms
+      WHERE id = form_id AND status = 'published'
+    )
+  );
+```
+
+### 6.5 Submissions table
+
+```sql
+CREATE TABLE submissions (
+  id                        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  form_id                   uuid NOT NULL REFERENCES forms(id) ON DELETE CASCADE,
+  respondent_language       text NOT NULL,
+  raw_responses_json        jsonb NOT NULL,  -- { field_id: raw_answer }
+  translated_responses_json jsonb,           -- null until async job completes
+  translation_status        translation_status NOT NULL DEFAULT 'pending',
+  submitted_at              timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE submissions ENABLE ROW LEVEL SECURITY;
+
+-- Anyone can submit to a published form (anonymous insert)
+CREATE POLICY "anon_insert_published" ON submissions
+  FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM forms
+      WHERE id = form_id
+        AND status = 'published'
+        AND (response_limit IS NULL OR (
+          SELECT COUNT(*) FROM submissions s2 WHERE s2.form_id = form_id
+        ) < response_limit)
+        AND (closes_at IS NULL OR closes_at > now())
+    )
+  );
+
+-- Creator can read submissions for their own forms
+CREATE POLICY "owner_read" ON submissions
+  FOR SELECT USING (
+    EXISTS (SELECT 1 FROM forms WHERE id = form_id AND user_id = auth.uid())
+  );
+
+-- Service role can update translation fields (used by webhook)
+CREATE POLICY "service_update" ON submissions
+  FOR UPDATE USING (true);
+```
+
+---
+
+## 7. AI Integration
+
+### 7.1 Language detection (`src/lib/ai/detect-language.ts`)
+
+```typescript
+import { franc } from 'franc-min';
+
+// Returns a BCP-47 tag or 'en' as fallback
+export function detectLanguage(text: string): string {
+  const iso639 = franc(text, { minLength: 10 });
+  const map: Record<string, string> = {
+    eng: 'en', spa: 'es', fra: 'fr', deu: 'de',
+    hin: 'hi', mal: 'ml', tam: 'ta', ara: 'ar',
+    zho: 'zh', por: 'pt', jpn: 'ja', kor: 'ko',
+  };
+  return map[iso639] ?? 'en';
+}
+```
+
+### 7.2 Form generation (`src/lib/ai/generate-form.ts`)
+
+This function takes the creator's raw prompt and returns a validated `AIGeneratedForm` object. Use Gemini's JSON mode by setting `responseMimeType: 'application/json'`. Pass the expected JSON schema in the system prompt so Gemini knows the exact shape to return.
+
+```typescript
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { AIGeneratedFormSchema, type AIGeneratedForm } from '@/types/form';
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+
+const SYSTEM_PROMPT = `You are a form designer. Given a user's prompt, generate a form in JSON.
+
+Return ONLY valid JSON matching this exact schema:
+{
+  "title": "string",
+  "description": "string (optional)",
+  "fields": [
+    {
+      "label": "string",
+      "field_type": "short_text" | "long_text" | "single_choice" | "multi_choice" | "rating" | "date" | "email" | "phone",
+      "placeholder": "string (optional)",
+      "is_required": boolean,
+      "options": ["string"] // only for single_choice and multi_choice
+    }
+  ]
+}
+
+Rules:
+- Generate 3–10 fields appropriate to the prompt.
+- Use single_choice or multi_choice for questions with discrete answers; include meaningful options.
+- Use rating for satisfaction or scale questions (options: ["1","2","3","4","5"]).
+- Use email field type for email address questions.
+- The title and all labels must be in the same language as the user's prompt.
+- Do not add any explanation. Return only JSON.`;
+
+export async function generateForm(prompt: string): Promise<AIGeneratedForm> {
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-1.5-flash-latest',
+    generationConfig: { responseMimeType: 'application/json' },
+    systemInstruction: SYSTEM_PROMPT,
+  });
+
+  const result = await model.generateContent(prompt);
+  const text = result.response.text();
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error('AI returned invalid JSON');
+  }
+
+  const validated = AIGeneratedFormSchema.safeParse(parsed);
+  if (!validated.success) {
+    throw new Error(`AI output failed validation: ${validated.error.message}`);
+  }
+
+  return validated.data;
+}
+```
+
+### 7.3 Field translation (`src/lib/ai/translate-fields.ts`)
+
+Called on publish. Takes the form's fields and a target language, returns a `FieldTranslationMap`.
+
+```typescript
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { type FormFieldRow, type FieldTranslationMap } from '@/types/form';
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+
+export async function translateFields(
+  fields: FormFieldRow[],
+  targetLanguage: string,
+  sourceLanguage: string
+): Promise<FieldTranslationMap> {
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-1.5-flash-latest',
+    generationConfig: { responseMimeType: 'application/json' },
+  });
+
+  const fieldData = fields.map(f => ({
+    id: f.id,
+    label: f.label,
+    placeholder: f.placeholder,
+    options: f.options_json,
+  }));
+
+  const prompt = `Translate the following form field data from "${sourceLanguage}" to "${targetLanguage}".
+Return ONLY a JSON object where each key is the field id and the value has the translated label, placeholder (if present), and options array (if present).
+Do not translate the keys. Preserve tone and formality. Return only JSON.
+
+Input:
+${JSON.stringify(fieldData, null, 2)}`;
+
+  const result = await model.generateContent(prompt);
+  const text = result.response.text();
+
+  try {
+    return JSON.parse(text) as FieldTranslationMap;
+  } catch {
+    throw new Error(`Translation to ${targetLanguage} returned invalid JSON`);
+  }
+}
+```
+
+### 7.4 Response translation (`src/lib/ai/translate-response.ts`)
+
+Called by the webhook after a submission is stored. Translates raw answer values back to the creator's original language.
+
+```typescript
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+
+export async function translateResponseToCreatorLanguage(
+  responses: Record<string, unknown>,
+  fromLanguage: string,
+  toLanguage: string
+): Promise<Record<string, unknown>> {
+  // Skip translation if languages match
+  if (fromLanguage === toLanguage) return responses;
+
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-1.5-flash-latest',
+    generationConfig: { responseMimeType: 'application/json' },
+  });
+
+  const prompt = `Translate the values in the following JSON object from "${fromLanguage}" to "${toLanguage}".
+Do not translate the keys. Only translate string values. Leave non-string values (numbers, booleans) unchanged.
+Return only JSON.
+
+Input:
+${JSON.stringify(responses, null, 2)}`;
+
+  const result = await model.generateContent(prompt);
+  const text = result.response.text();
+
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    // On failure return original so data is never lost
+    return responses;
+  }
+}
+```
+
+---
+
+## 8. API Routes
+
+### 8.1 `POST /api/generate`
+
+Accepts `{ prompt: string }`. Detects language, calls `generateForm`, returns the AI output and detected language. Rate-limit to 10 requests per user per day using a simple counter in the database or Supabase Edge Config.
+
+```typescript
+// src/app/api/generate/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { createServerClient } from '@/lib/supabase/server';
+import { generateForm } from '@/lib/ai/generate-form';
+import { detectLanguage } from '@/lib/ai/detect-language';
+
+export async function POST(request: NextRequest) {
+  const supabase = createServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { prompt } = await request.json();
+  if (!prompt || typeof prompt !== 'string' || prompt.length < 5) {
+    return NextResponse.json({ error: 'Invalid prompt' }, { status: 400 });
+  }
+
+  try {
+    const detectedLanguage = detectLanguage(prompt);
+    const form = await generateForm(prompt);
+    return NextResponse.json({ form, detectedLanguage });
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Form generation failed. Please try again.' },
+      { status: 500 }
+    );
+  }
+}
+```
+
+### 8.2 `POST /api/translate-form`
+
+Called when a creator publishes a form. Receives `{ formId: string, languages: string[] }`. For each target language, calls `translateFields` and upserts a row in `form_translations`. Then sets `forms.status = 'published'`.
+
+```typescript
+// src/app/api/translate-form/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { createServerClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin'; // uses SERVICE_ROLE_KEY
+import { translateFields } from '@/lib/ai/translate-fields';
+
+export async function POST(request: NextRequest) {
+  const supabase = createServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { formId, languages } = await request.json();
+
+  // Verify form belongs to user
+  const { data: form } = await supabase
+    .from('forms')
+    .select('*, form_fields(*)')
+    .eq('id', formId)
+    .eq('user_id', user.id)
+    .single();
+
+  if (!form) return NextResponse.json({ error: 'Form not found' }, { status: 404 });
+
+  const admin = createAdminClient();
+
+  // Pre-translate into each selected language (run in parallel, max 5)
+  const results = await Promise.allSettled(
+    languages.map(async (lang: string) => {
+      if (lang === form.original_language) return; // skip — no translation needed
+      const translations = await translateFields(
+        form.form_fields,
+        lang,
+        form.original_language
+      );
+      await admin.from('form_translations').upsert({
+        form_id: formId,
+        language: lang,
+        translations_json: translations,
+        generated_at: new Date().toISOString(),
+      }, { onConflict: 'form_id,language' });
+    })
+  );
+
+  // Publish the form regardless of partial translation failures
+  await admin.from('forms').update({ status: 'published' }).eq('id', formId);
+
+  const failed = results.filter(r => r.status === 'rejected').length;
+  return NextResponse.json({ success: true, failedLanguages: failed });
+}
+```
+
+### 8.3 `POST /api/translate-response`
+
+This route is called by a Supabase Database Webhook triggered on INSERT into the submissions table. Configure the webhook in Supabase Dashboard → Database → Webhooks: set it to call `POST {NEXT_PUBLIC_APP_URL}/api/translate-response` on INSERT on `submissions`.
+
+```typescript
+// src/app/api/translate-response/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { translateResponseToCreatorLanguage } from '@/lib/ai/translate-response';
+
+export async function POST(request: NextRequest) {
+  const payload = await request.json();
+  const submission = payload.record; // Supabase webhook provides the inserted row
+
+  const admin = createAdminClient();
+
+  // Fetch the form's original language
+  const { data: form } = await admin
+    .from('forms')
+    .select('original_language')
+    .eq('id', submission.form_id)
+    .single();
+
+  if (!form) return NextResponse.json({ error: 'Form not found' }, { status: 404 });
+
+  const fromLang = submission.respondent_language;
+  const toLang = form.original_language;
+
+  if (fromLang === toLang) {
+    // No translation needed — mark as skipped
+    await admin
+      .from('submissions')
+      .update({
+        translated_responses_json: submission.raw_responses_json,
+        translation_status: 'skipped',
+      })
+      .eq('id', submission.id);
+    return NextResponse.json({ status: 'skipped' });
+  }
+
+  try {
+    const translated = await translateResponseToCreatorLanguage(
+      submission.raw_responses_json,
+      fromLang,
+      toLang
+    );
+
+    await admin
+      .from('submissions')
+      .update({
+        translated_responses_json: translated,
+        translation_status: 'done',
+      })
+      .eq('id', submission.id);
+
+    return NextResponse.json({ status: 'done' });
+  } catch {
+    // Leave as pending — don't fail silently with corrupted data
+    return NextResponse.json({ status: 'error' }, { status: 500 });
+  }
+}
+```
+
+---
+
+## 9. Key UI Pages and Components
+
+### 9.1 Create page (`/create`)
+
+- Full-width textarea: "Describe the form you want to create..."
+- Below the textarea: six clickable prompt suggestion chips:
+  - "Customer feedback form for a coffee shop"
+  - "Job application form for a small business"
+  - "Event RSVP and dietary preferences"
+  - "Student course satisfaction survey"
+  - "Product bug report form"
+  - "Employee onboarding checklist"
+- A "Generate Form" button that calls `POST /api/generate`
+- While loading: skeleton loader showing placeholder field cards
+- On success: render the editable form preview below using the field editor component
+- Show "Detected language: [Language Name]" as a small badge near the title
+- At the bottom: "Save as Draft" and "Continue to Settings" buttons
+
+### 9.2 Field editor component
+
+The field editor renders each `FormFieldRow` as a draggable card using `@dnd-kit/sortable`. Each card shows:
+- Drag handle (left)
+- Field type icon (right of handle)
+- Label input (editable inline)
+- Required toggle (Shadcn Switch)
+- Delete button (right)
+- For choice fields: an inline list of option inputs with add/remove buttons
+- "Add field" button at the bottom of the list opens a field type picker grid
+
+When the user reorders fields via drag, update `order_index` values locally (optimistic) and debounce-save to Supabase.
+
+### 9.3 Public form page (`/f/[slug]`)
+
+This page must be accessible without authentication.
+
+- Fetch the form by slug: `SELECT * FROM forms WHERE slug = $slug AND status = 'published'`
+- If not found or not published, show a clean "This form is not available" message
+- At the top: form title, description, language selector dropdown
+- Language selector shows only the languages in `forms.supported_languages` plus `forms.original_language`
+- Default language: read from `localStorage` key `preferred_language`, fallback to browser's `navigator.language`, fallback to `forms.original_language`
+- When a language is selected: fetch the matching row from `form_translations` and swap all field labels, placeholders, and options with the translated versions. If the selected language is the original language, use the raw field values directly.
+- Store the selected language choice in `localStorage` on change
+- Render fields using the appropriate field renderer component
+- On submit: validate with the dynamically-built Zod schema (see Section 10), then `INSERT` into `submissions` table with `respondent_language` set to the currently selected language code
+- After successful submit: show a full-screen "Thank you" confirmation with a confetti animation. Do not redirect.
+
+### 9.4 Response dashboard (`/forms/[id]/responses`)
+
+- Fetch all submissions for the form ordered by `submitted_at DESC`
+- Show a summary bar: total responses, languages used (as flag badges), completion rate
+- Table columns: Submitted at | Language | [one column per form field showing translated value] | Translation status
+- Translation status: green checkmark for "done", amber clock for "pending", gray dash for "skipped"
+- Use Supabase Realtime to subscribe to new INSERT events on the submissions table so new responses appear without page refresh
+- "Export CSV" button: uses papaparse to export translated responses (falls back to raw if translation is pending). Include both raw and translated values as separate column groups.
+
+### 9.5 Share page (`/forms/[id]/share`)
+
+- Display the public URL: `{NEXT_PUBLIC_APP_URL}/f/{slug}`
+- One-click copy button
+- QR code rendered with `qrcode.react` at 200×200px
+- Embed code: `<iframe src="{url}" width="100%" height="600" frameborder="0"></iframe>`
+- Language toggle section: checklist of all `SUPPORTED_LANGUAGES` the creator can enable/disable. Toggling a language triggers a translation job for that language. Maximum 8 languages per form.
+
+---
+
+## 10. Dynamic Zod Validation for Public Forms
+
+The form renderer needs to validate submissions against the AI-generated field types at runtime. Build the Zod schema dynamically from the `FormFieldRow` array:
+
+```typescript
+import { z } from 'zod';
+import type { FormFieldRow } from '@/types/form';
+
+export function buildSubmissionSchema(fields: FormFieldRow[]) {
+  const shape: Record<string, z.ZodTypeAny> = {};
+
+  for (const field of fields) {
+    let validator: z.ZodTypeAny;
+
+    switch (field.field_type) {
+      case 'email':
+        validator = z.string().email('Please enter a valid email address');
+        break;
+      case 'short_text':
+        validator = z.string().min(1, 'This field is required');
+        break;
+      case 'long_text':
+        validator = z.string().min(1, 'This field is required');
+        break;
+      case 'single_choice':
+        validator = z.string().min(1, 'Please select an option');
+        break;
+      case 'multi_choice':
+        validator = z.array(z.string()).min(1, 'Please select at least one option');
+        break;
+      case 'rating':
+        validator = z.string().min(1, 'Please select a rating');
+        break;
+      case 'date':
+        validator = z.string().min(1, 'Please select a date');
+        break;
+      case 'phone':
+        validator = z.string().min(7, 'Please enter a valid phone number');
+        break;
+      default:
+        validator = z.string();
+    }
+
+    if (!field.is_required) {
+      validator = validator.optional();
+    }
+
+    shape[field.id] = validator;
+  }
+
+  return z.object(shape);
+}
+```
+
+Use this schema with `react-hook-form`'s `zodResolver`.
+
+---
+
+## 11. Supabase Client Setup
+
+### Browser client (`src/lib/supabase/client.ts`)
+
+```typescript
+import { createBrowserClient } from '@supabase/ssr';
+
+export function createClient() {
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+}
+```
+
+### Server client (`src/lib/supabase/server.ts`)
+
+```typescript
+import { createServerClient as createSSRClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
+
+export function createServerClient() {
+  const cookieStore = cookies();
+  return createSSRClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name) { return cookieStore.get(name)?.value; },
+        set(name, value, options) { cookieStore.set({ name, value, ...options }); },
+        remove(name, options) { cookieStore.set({ name, value: '', ...options }); },
+      },
+    }
+  );
+}
+```
+
+### Admin client (`src/lib/supabase/admin.ts`)
+
+```typescript
+import { createClient } from '@supabase/supabase-js';
+
+export function createAdminClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
+```
+
+### Middleware (`src/middleware.ts`)
+
+Protect all dashboard routes. The public form routes (`/f/[slug]`) and auth routes must remain accessible.
+
+```typescript
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { createServerClient } from '@supabase/ssr';
+
+export async function middleware(request: NextRequest) {
+  const response = NextResponse.next();
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name) { return request.cookies.get(name)?.value; },
+        set(name, value, options) { response.cookies.set({ name, value, ...options }); },
+        remove(name, options) { response.cookies.set({ name, value: '', ...options }); },
+      },
+    }
+  );
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const isDashboard = request.nextUrl.pathname.startsWith('/') &&
+    !request.nextUrl.pathname.startsWith('/f/') &&
+    !request.nextUrl.pathname.startsWith('/login') &&
+    !request.nextUrl.pathname.startsWith('/auth/');
+
+  if (isDashboard && !user) {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+
+  return response;
+}
+
+export const config = {
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+};
+```
+
+---
+
+## 12. Auth Flow
+
+Use Supabase magic link (passwordless email) for creator auth.
+
+- Login page (`/login`): single email input + "Send login link" button. On submit, call `supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: '{APP_URL}/auth/callback' } })`. Show "Check your email" confirmation.
+- Auth callback route (`/auth/callback/route.ts`): exchange the code for a session using `supabase.auth.exchangeCodeForSession(code)`, then redirect to `/`.
+- Dashboard layout: fetch the user server-side; redirect to `/login` if not authenticated.
+- Sign-out button in sidebar: calls `supabase.auth.signOut()` then redirects to `/login`.
+
+---
+
+## 13. Slug Generation
+
+Generate slugs when saving a new form as a draft. Use `nanoid` with a custom alphabet to create URL-safe slugs:
+
+```typescript
+import { customAlphabet } from 'nanoid';
+const nanoid = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 10);
+
+export function generateSlug(): string {
+  return nanoid(); // e.g. "k3m8pqzt1x"
+}
+```
+
+Public form URL format: `{APP_URL}/f/{slug}`
+
+---
+
+## 14. Build Order
+
+Build in exactly this sequence. Each phase produces a testable deliverable.
+
+### Phase 1 — Foundation (complete before moving on)
+
+1. Initialize Next.js project with TypeScript, Tailwind, Shadcn
+2. Install all dependencies listed in Section 2
+3. Create `.env.local` with all variables
+4. Set up Supabase project, run all migrations from Section 6
+5. Set up Supabase browser/server/admin client files
+6. Set up Next.js middleware for auth protection
+7. Build login page and auth callback route
+8. Verify auth: user can sign in via magic link, session persists, protected routes redirect
+9. Define all types in `src/types/form.ts` (Section 5) — do not skip this step
+10. Implement `generateForm` in `src/lib/ai/generate-form.ts` and test it standalone with `console.log`
+11. Build `POST /api/generate` route
+12. Build the create page with prompt input and AI generation
+13. Build the field editor component
+14. Implement "Save as Draft": insert into `forms` + `form_fields` tables
+15. Build the dashboard home page listing the user's forms
+
+### Phase 2 — Multilingual Core
+
+16. Build `translateFields` and `translateResponseToCreatorLanguage` AI functions
+17. Build `POST /api/translate-form` route
+18. Build the share/settings page with language selector checklist
+19. Wire the "Publish" button: calls `/api/translate-form`, then updates form status
+20. Build the public form page (`/f/[slug]`): language toggle, field rendering, submission insert
+21. Implement `buildSubmissionSchema` and wire it to `react-hook-form`
+22. Configure Supabase webhook to call `/api/translate-response` on submission INSERT
+23. Build the responses page: table with translated answers, Supabase Realtime subscription
+
+### Phase 3 — Polish
+
+24. Drag-and-drop reordering in field editor
+25. CSV export using papaparse
+26. QR code on share page
+27. Form analytics bar (response count, language breakdown)
+28. Form status controls: close form, set response limit, set expiry date
+29. Prompt suggestion chips on create page
+
+---
+
+## 15. Critical Constraints
+
+These are non-negotiable. Do not deviate from them.
+
+- **Never call the translation API at respondent page load time.** All translations must be pre-computed on publish and served from `form_translations`. Live translation calls are only acceptable in the rare fallback case where a respondent selects a language that was not pre-translated.
+- **Never store `structure_json` as a single blob.** Each field is a row in `form_fields` with a proper `field_type`, `order_index`, and `is_required`. This is required for field reordering, per-field validation, and translation keying.
+- **The `SUPABASE_SERVICE_ROLE_KEY` must never appear in client-side code.** It is used only in `src/lib/supabase/admin.ts`, which is imported only by API routes and server components.
+- **RLS must be enabled on all tables before any data is written to them.** Do not disable RLS for convenience.
+- **The Zod schema in `src/types/form.ts` is the single source of truth.** Never define field type enums or translation structures in more than one place.
+- **AI responses must always be validated with Zod before being saved to the database.** Never insert AI output directly without parsing through the schema.
+- **The public form page must render without any authentication.** Do not add auth middleware to `/f/[slug]`.
+- **Respondent's chosen language must be persisted in `localStorage`.** The key is `preferred_language`. Read it on page load before rendering the language selector.
+- **Translation status must be reflected in the UI.** Do not show blank cells for pending translations — show a "Translating..." indicator using Supabase Realtime to update when the translation job completes.
