@@ -6,6 +6,132 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
+function AuthBanner() {
+  const gridH = Array.from({ length: 26 }, (_, i) => i * 8);
+  const gridV = Array.from({ length: 91 }, (_, i) => i * 16);
+
+  const radioOptions = [
+    { y: 64, w: 100, filled: false },
+    { y: 88, w: 148, filled: true },
+    { y: 112, w: 72, filled: false },
+    { y: 136, w: 124, filled: false },
+  ];
+
+  const bars = [
+    { w: 290, shade: "#0f0f0f" },
+    { w: 210, shade: "#444" },
+    { w: 145, shade: "#888" },
+    { w: 85,  shade: "#bbb" },
+  ];
+
+  return (
+    <svg
+      viewBox="0 0 1440 200"
+      xmlns="http://www.w3.org/2000/svg"
+      preserveAspectRatio="xMidYMid slice"
+      className="w-full h-full"
+    >
+      {/* Off-white background */}
+      <rect width="1440" height="200" fill="#fafafa" />
+
+      {/* Ultra-fine base grid */}
+      {gridH.map(y => (
+        <line key={`h${y}`} x1="0" y1={y} x2="1440" y2={y} stroke="#ebebeb" strokeWidth="0.5" />
+      ))}
+      {gridV.map(x => (
+        <line key={`v${x}`} x1={x} y1="0" x2={x} y2="200" stroke="#ebebeb" strokeWidth="0.5" />
+      ))}
+
+      {/* ── SECTION 1: Form fields (left) ───────────────────────────── */}
+      {/* Title bar */}
+      <rect x="60" y="28" width="200" height="10" fill="#0f0f0f" />
+      <rect x="268" y="28" width="80" height="10" fill="#d8d8d8" />
+
+      {/* Row of two inputs */}
+      <rect x="60" y="52" width="7" height="7" fill="#ccc" />
+      <rect x="72" y="53" width="70" height="5" fill="#ccc" />
+      <rect x="60" y="62" width="188" height="18" fill="none" stroke="#0f0f0f" strokeWidth="1" />
+
+      <rect x="260" y="52" width="7" height="7" fill="#ccc" />
+      <rect x="272" y="53" width="55" height="5" fill="#ccc" />
+      <rect x="260" y="62" width="160" height="18" fill="none" stroke="#0f0f0f" strokeWidth="1" />
+
+      {/* Textarea */}
+      <rect x="60" y="96" width="7" height="7" fill="#ccc" />
+      <rect x="72" y="97" width="85" height="5" fill="#ccc" />
+      <rect x="60" y="107" width="360" height="52" fill="none" stroke="#0f0f0f" strokeWidth="1" />
+      <line x1="76" y1="122" x2="404" y2="122" stroke="#e4e4e4" strokeWidth="0.5" />
+      <line x1="76" y1="136" x2="370" y2="136" stroke="#e4e4e4" strokeWidth="0.5" />
+      <line x1="76" y1="150" x2="390" y2="150" stroke="#e4e4e4" strokeWidth="0.5" />
+
+      {/* Dashed section divider */}
+      <line x1="480" y1="16" x2="480" y2="184" stroke="#d4d4d4" strokeWidth="1" strokeDasharray="3 4" />
+
+      {/* ── SECTION 2: Choice question (center) ─────────────────────── */}
+      <rect x="516" y="28" width="260" height="10" fill="#0f0f0f" />
+      <rect x="784" y="28" width="100" height="10" fill="#e0e0e0" />
+
+      {radioOptions.map(({ y, w, filled }, i) => (
+        <g key={`opt-${i}`}>
+          <circle cx="527" cy={y} r="8"
+            fill={filled ? "#0f0f0f" : "none"}
+            stroke="#0f0f0f"
+            strokeWidth={filled ? 0 : 1.5}
+          />
+          {filled && <circle cx="527" cy={y} r="3.5" fill="#fafafa" />}
+          <rect x="546" y={y - 5} width={w} height="8"
+            fill={filled ? "#0f0f0f" : "#d8d8d8"}
+          />
+        </g>
+      ))}
+
+      {/* Rating row */}
+      {[0, 1, 2, 3, 4].map(i => {
+        const cx = 516 + i * 30;
+        const cy = 173;
+        const star = `M0,-9 L2.1,-3.1 L8.5,-2.9 L3.6,1.2 L5.5,7.6 L0,4.1 L-5.5,7.6 L-3.6,1.2 L-8.5,-2.9 L-2.1,-3.1 Z`;
+        return (
+          <path key={`star-${i}`}
+            d={star}
+            transform={`translate(${cx},${cy})`}
+            fill={i < 3 ? "#0f0f0f" : "none"}
+            stroke="#0f0f0f"
+            strokeWidth={i < 3 ? 0 : 1}
+          />
+        );
+      })}
+      <rect x="676" y="165" width="60" height="7" fill="#d0d0d0" />
+
+      {/* Dashed section divider */}
+      <line x1="910" y1="16" x2="910" y2="184" stroke="#d4d4d4" strokeWidth="1" strokeDasharray="3 4" />
+
+      {/* ── SECTION 3: Response analytics (right) ──────────────────── */}
+      <rect x="944" y="28" width="120" height="10" fill="#0f0f0f" />
+      <rect x="1072" y="28" width="60" height="10" fill="#e0e0e0" />
+
+      {bars.map(({ w, shade }, i) => {
+        const y = 52 + i * 30;
+        return (
+          <g key={`bar-${i}`}>
+            <rect x="944" y={y - 8} width={60 + i * 15} height="5" fill="#e0e0e0" />
+            <rect x="944" y={y + 2} width="360" height="10" fill="#f0f0f0" />
+            <rect x="944" y={y + 2} width={w} height="10" fill={shade} />
+          </g>
+        );
+      })}
+
+      {/* Submit button area */}
+      <rect x="944" y="168" width="230" height="18" fill="none" stroke="#d0d0d0" strokeWidth="1" />
+      <rect x="1192" y="168" width="180" height="18" fill="#0f0f0f" />
+      <rect x="1210" y="176" width="80" height="5" fill="#fafafa" />
+      <rect x="1298" y="176" width="12" height="5" fill="#666" />
+
+      {/* Bottom edge line */}
+      <rect x="0" y="198" width="1440" height="2" fill="#e8e8e8" />
+    </svg>
+  );
+}
+
 export default function Login() {
   const [, setLocation] = useLocation();
   const search = useSearch();
@@ -35,79 +161,87 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-6">
-      <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="mb-10">
-          <div className="w-8 h-8 bg-foreground text-background flex items-center justify-center text-sm font-bold mb-5">
-            P
+    <div className="min-h-screen bg-background flex flex-col">
+      {/* ── Full-width banner ── */}
+      <div className="w-full overflow-hidden border-b border-border" style={{ height: "clamp(120px, 18vw, 200px)" }}>
+        <AuthBanner />
+      </div>
+
+      {/* ── Form ── */}
+      <div className="flex-1 flex items-center justify-center p-6 py-10">
+        <div className="w-full max-w-sm">
+          {/* Logo + heading */}
+          <div className="mb-8">
+            <div className="w-8 h-8 bg-foreground text-background flex items-center justify-center text-sm font-bold mb-5">
+              P
+            </div>
+            <h1 className="text-foreground">
+              {mode === "login" ? "Welcome back" : "Create an account"}
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              {mode === "login"
+                ? "Sign in to manage your forms"
+                : "Sign up to start building multilingual forms"}
+            </p>
           </div>
-          <h1 className="text-xl font-semibold tracking-tight text-foreground">
-            {mode === "login" ? "Welcome back" : "Create an account"}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {mode === "login"
-              ? "Sign in to manage your forms"
-              : "Sign up to start building multilingual forms"}
+
+          {/* Form fields */}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="email" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="name@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+                autoFocus
+                className="h-10 border-border focus:border-foreground focus:ring-0 bg-background"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="password" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete={mode === "login" ? "current-password" : "new-password"}
+                className="h-10 border-border focus:border-foreground focus:ring-0 bg-background"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full h-10 bg-foreground text-background text-sm font-medium flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50 mt-2"
+            >
+              {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+              {mode === "login" ? "Sign In" : "Create Account"}
+            </button>
+          </form>
+
+          <p className="mt-6 text-center text-sm text-muted-foreground">
+            {mode === "login" ? (
+              <>
+                Don't have an account?{" "}
+                <button className="text-foreground underline underline-offset-2" onClick={() => setMode("signup")}>
+                  Sign up
+                </button>
+              </>
+            ) : (
+              <>
+                Already have an account?{" "}
+                <button className="text-foreground underline underline-offset-2" onClick={() => setMode("login")}>
+                  Sign in
+                </button>
+              </>
+            )}
           </p>
         </div>
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="email" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="name@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-              autoFocus
-              className="h-10 border-border focus:border-foreground focus:ring-0 bg-background"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="password" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete={mode === "login" ? "current-password" : "new-password"}
-              className="h-10 border-border focus:border-foreground focus:ring-0 bg-background"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full h-10 bg-foreground text-background text-sm font-medium flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50 mt-2"
-          >
-            {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-            {mode === "login" ? "Sign In" : "Create Account"}
-          </button>
-        </form>
-
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          {mode === "login" ? (
-            <>
-              Don't have an account?{" "}
-              <button className="text-foreground underline underline-offset-2" onClick={() => setMode("signup")}>
-                Sign up
-              </button>
-            </>
-          ) : (
-            <>
-              Already have an account?{" "}
-              <button className="text-foreground underline underline-offset-2" onClick={() => setMode("login")}>
-                Sign in
-              </button>
-            </>
-          )}
-        </p>
       </div>
     </div>
   );
