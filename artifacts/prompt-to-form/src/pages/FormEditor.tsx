@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Settings, List, FileSpreadsheet, Share2, GripVertical, Trash2, Plus, Type, AlignLeft, CheckSquare, ListChecks, Star, Calendar, Mail, Phone } from "lucide-react";
+import { Loader2, Settings, List, FileSpreadsheet, Share2, GripVertical, Trash2, Plus, Type, AlignLeft, CheckSquare, ListChecks, Star, Calendar, Mail, Phone, Download } from "lucide-react";
 import { SUPPORTED_LANGUAGES } from "@/lib/constants";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -320,52 +320,129 @@ export default function FormEditor() {
           </TabsContent>
 
           <TabsContent value="responses" className="mt-6">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
+            {(() => {
+              const orderedFields = (fields || []).slice().sort((a, b) => a.orderIndex - b.orderIndex);
+
+              const handleExportCSV = () => {
+                if (!submissions?.length) return;
+                const metaCols = ["Submitted At", "Language", "Translation"];
+                const fieldCols = orderedFields.map(f => f.label);
+                const header = [...metaCols, ...fieldCols];
+
+                const rows = submissions.map(sub => {
+                  const data = sub.translatedResponsesJson || sub.rawResponsesJson || {};
+                  const langName = SUPPORTED_LANGUAGES.find(l => l.code === sub.respondentLanguage)?.name || sub.respondentLanguage;
+                  const meta = [
+                    format(new Date(sub.submittedAt), "yyyy-MM-dd HH:mm"),
+                    langName,
+                    sub.translationStatus,
+                  ];
+                  const answers = orderedFields.map(f => {
+                    const val = (data as Record<string, any>)[f.id];
+                    if (Array.isArray(val)) return val.join("; ");
+                    return val != null ? String(val) : "";
+                  });
+                  return [...meta, ...answers];
+                });
+
+                const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+                const csv = [header, ...rows].map(r => r.map(escape).join(",")).join("\n");
+                const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `${form.title.replace(/\s+/g, "_")}_responses.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+              };
+
+              return (
                 <div>
-                  <CardTitle>Responses</CardTitle>
-                  <CardDescription>View and export form submissions.</CardDescription>
+                  {/* Header row */}
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <p className="text-sm text-muted-foreground">
+                        {submissions?.length ?? 0} {submissions?.length === 1 ? "response" : "responses"} collected
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleExportCSV}
+                      disabled={!submissions?.length}
+                      className="flex items-center gap-2 px-4 py-2 text-sm border border-border hover:border-foreground text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <Download className="w-4 h-4" />
+                      Export CSV
+                    </button>
+                  </div>
+
+                  {isSubmissionsLoading ? (
+                    <div className="flex justify-center py-16">
+                      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : !submissions?.length ? (
+                    <div className="border border-border py-20 text-center">
+                      <FileSpreadsheet className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
+                      <p className="text-sm font-medium text-foreground">No responses yet</p>
+                      <p className="text-xs text-muted-foreground mt-1">Share your form to start collecting responses.</p>
+                    </div>
+                  ) : (
+                    <div className="border border-border overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-border bg-muted/40">
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">#</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">Date</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">Language</th>
+                            {orderedFields.map(f => (
+                              <th key={f.id} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap max-w-[200px]">
+                                <span className="block truncate max-w-[180px]">{f.label}</span>
+                              </th>
+                            ))}
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">Translation</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {submissions.map((sub, idx) => {
+                            const data = (sub.translatedResponsesJson || sub.rawResponsesJson || {}) as Record<string, any>;
+                            const langName = SUPPORTED_LANGUAGES.find(l => l.code === sub.respondentLanguage)?.name || sub.respondentLanguage;
+                            return (
+                              <tr key={sub.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
+                                <td className="px-4 py-3 text-muted-foreground">{idx + 1}</td>
+                                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                                  {format(new Date(sub.submittedAt), "MMM d, yyyy · HH:mm")}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <span className="border border-border px-2 py-0.5 text-xs font-medium">{langName}</span>
+                                </td>
+                                {orderedFields.map(f => {
+                                  const val = data[f.id];
+                                  const display = Array.isArray(val) ? val.join(", ") : val != null ? String(val) : "";
+                                  return (
+                                    <td key={f.id} className="px-4 py-3 max-w-[200px]">
+                                      <span className="block truncate" title={display}>{display || <span className="text-muted-foreground/50">—</span>}</span>
+                                    </td>
+                                  );
+                                })}
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <span className={`text-xs font-medium uppercase tracking-wide ${
+                                    sub.translationStatus === "done" ? "text-foreground" :
+                                    sub.translationStatus === "skipped" ? "text-muted-foreground" :
+                                    sub.translationStatus === "pending" ? "text-muted-foreground" :
+                                    "text-destructive"
+                                  }`}>
+                                    {sub.translationStatus}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
-                <Button variant="outline" disabled={!submissions?.length}>
-                  Export CSV
-                </Button>
-              </CardHeader>
-              <CardContent>
-                {isSubmissionsLoading ? (
-                  <div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin" /></div>
-                ) : submissions?.length === 0 ? (
-                  <div className="text-center p-8 text-muted-foreground">
-                    No responses yet.
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {submissions?.map((sub) => (
-                      <div key={sub.id} className="border rounded-lg p-4">
-                        <div className="flex justify-between items-start mb-4 pb-2 border-b">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline">{SUPPORTED_LANGUAGES.find(l => l.code === sub.respondentLanguage)?.name || sub.respondentLanguage}</Badge>
-                            <span className="text-sm text-muted-foreground">{format(new Date(sub.submittedAt), 'PPpp')}</span>
-                          </div>
-                          <Badge 
-                            variant={sub.translationStatus === 'done' ? 'default' : sub.translationStatus === 'pending' ? 'secondary' : 'outline'}
-                          >
-                            Translation: {sub.translationStatus}
-                          </Badge>
-                        </div>
-                        <div className="space-y-2">
-                           {Object.entries(sub.translatedResponsesJson || sub.rawResponsesJson || {}).map(([key, val]) => (
-                             <div key={key}>
-                               <span className="font-medium text-sm text-muted-foreground block">{key}</span>
-                               <span className="text-sm">{String(val)}</span>
-                             </div>
-                           ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+              );
+            })()}
           </TabsContent>
         </Tabs>
       </div>
