@@ -8,8 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { useState } from "react";
-import { Loader2, Copy, ExternalLink, QrCode } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Loader2, Copy, ExternalLink, QrCode, CheckCircle2, AlertCircle } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { SUPPORTED_LANGUAGES } from "@/lib/constants";
 
@@ -21,16 +21,36 @@ export default function FormShare() {
   
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [publishStep, setPublishStep] = useState<"idle" | "validating" | "translating" | "saving" | "done" | "error">("idle");
+  const [publishProgress, setPublishProgress] = useState(0);
 
-  // Initialize selected languages — always include the original language
-  useState(() => {
+  useEffect(() => {
     if (form && selectedLanguages.length === 0) {
       const langs = form.supportedLanguages.includes(form.originalLanguage)
         ? form.supportedLanguages
         : [form.originalLanguage, ...form.supportedLanguages];
       setSelectedLanguages(langs);
     }
-  });
+  }, [form, selectedLanguages.length]);
+
+  useEffect(() => {
+    if (!isPublishing) return;
+    const steps: Array<[typeof publishStep, number]> = [
+      ["validating", 15],
+      ["translating", 45],
+      ["saving", 80],
+    ];
+    let i = 0;
+    setPublishProgress(10);
+    setPublishStep("validating");
+    const timer = window.setInterval(() => {
+      const [step, progress] = steps[Math.min(i, steps.length - 1)];
+      setPublishStep(step);
+      setPublishProgress(progress);
+      i += 1;
+    }, 1200);
+    return () => window.clearInterval(timer);
+  }, [isPublishing]);
 
   if (isLoading || !form) {
     return <DashboardLayout><div className="flex justify-center p-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div></DashboardLayout>;
@@ -46,16 +66,26 @@ export default function FormShare() {
     }
 
     setIsPublishing(true);
+    setPublishStep("validating");
+    setPublishProgress(10);
     try {
       await publishForm.mutateAsync({
         id,
         data: { languages: selectedLanguages }
       });
+      setPublishStep("done");
+      setPublishProgress(100);
       toast.success("Form published and translations started!");
     } catch (e) {
+      setPublishStep("error");
+      setPublishProgress(100);
       toast.error("Failed to publish form");
     } finally {
-      setIsPublishing(false);
+      window.setTimeout(() => {
+        setIsPublishing(false);
+        setPublishStep("idle");
+        setPublishProgress(0);
+      }, 900);
     }
   };
 
@@ -79,6 +109,28 @@ export default function FormShare() {
               <CardDescription>Select the languages you want to translate this form into.</CardDescription>
             </CardHeader>
             <CardContent>
+              {isPublishing && (
+                <div className="mb-4 space-y-2">
+                  <div className="flex items-center justify-between text-xs uppercase tracking-wide text-muted-foreground">
+                    <span>
+                      {publishStep === "validating" && "Validating form"}
+                      {publishStep === "translating" && "Translating fields"}
+                      {publishStep === "saving" && "Saving translations"}
+                      {publishStep === "done" && "Published"}
+                      {publishStep === "error" && "Publish failed"}
+                    </span>
+                    <span>{publishProgress}%</span>
+                  </div>
+                  <div className="h-2 bg-muted overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-500 ${
+                        publishStep === "error" ? "bg-destructive" : "bg-foreground"
+                      }`}
+                      style={{ width: `${publishProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3 bg-muted/30 p-4 rounded-lg">
                 {SUPPORTED_LANGUAGES.map((lang) => (
                   <div key={lang.code} className="flex items-center space-x-2">
@@ -104,8 +156,8 @@ export default function FormShare() {
             </CardContent>
             <CardFooter>
               <Button onClick={handlePublish} disabled={isPublishing} className="w-full sm:w-auto">
-                {isPublishing && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Publish & Translate
+                {isPublishing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                {isPublishing ? "Publishing..." : "Publish & Translate"}
               </Button>
             </CardFooter>
           </Card>
