@@ -79,9 +79,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Sidebar — desktop only */}
       <aside className="w-60 border-r border-border bg-sidebar hidden md:flex flex-col shrink-0">
         <div className="h-16 flex items-center px-6 border-b border-border">
-          <Link href="/" className="flex items-center gap-2.5 text-sm tracking-tight text-[#4f86ff]" style={{ fontFamily: "var(--app-font-display)", fontWeight: 700 }}>
+          <Link href="/" className="flex items-center gap-2.5 text-sm tracking-tight text-foreground/90" style={{ fontFamily: "var(--app-font-display)", fontWeight: 600 }}>
             <LogoIcon size={26} />
-            B-Forms
+            <span className="tracking-[0.22em] uppercase">B-Forms</span>
           </Link>
         </div>
 
@@ -107,9 +107,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       <main className="flex-1 flex flex-col min-h-[100dvh] overflow-auto">
         {/* Mobile Header */}
         <header className="md:hidden h-14 border-b border-border bg-background flex items-center px-4 justify-between sticky top-0 z-10">
-          <Link href="/" className="text-sm flex items-center gap-2 text-[#4f86ff]" style={{ fontFamily: "var(--app-font-display)", fontWeight: 700 }}>
+          <Link href="/" className="text-sm flex items-center gap-2 text-foreground/90" style={{ fontFamily: "var(--app-font-display)", fontWeight: 600 }}>
             <LogoIcon size={22} />
-            B-Forms
+            <span className="tracking-[0.22em] uppercase">B-Forms</span>
           </Link>
         </header>
 

@@ -14,15 +14,13 @@ export function LogoIcon({ size = 28, className }: LogoIconProps) {
       className={className}
       aria-label="B-Forms"
     >
-      <rect width="32" height="32" rx="5" fill="#212121" />
-      {/* Faint label line + input bar — row 1 */}
-      <rect x="7" y="7" width="9" height="1.5" rx="0.75" fill="white" opacity="0.45" />
-      <rect x="7" y="10" width="18" height="3.5" rx="1" fill="white" />
-      {/* Faint label line + input bar — row 2 */}
-      <rect x="7" y="16.5" width="12" height="1.5" rx="0.75" fill="white" opacity="0.45" />
-      <rect x="7" y="19.5" width="13" height="3.5" rx="1" fill="white" opacity="0.8" />
-      {/* Submit pill */}
-      <rect x="7" y="25.5" width="7" height="2.5" rx="1.25" fill="white" opacity="0.9" />
+      <rect width="32" height="32" rx="7" fill="#17181c" />
+      <rect x="6" y="6" width="20" height="20" rx="5" fill="none" stroke="#d9dde3" strokeWidth="1" opacity="0.9" />
+      <rect x="8" y="9" width="8" height="1.4" rx="0.7" fill="#8e949d" />
+      <rect x="8" y="12" width="14" height="3.2" rx="1" fill="#f4f6f8" />
+      <rect x="8" y="17.5" width="10" height="1.4" rx="0.7" fill="#8e949d" />
+      <rect x="8" y="20.5" width="12" height="3.2" rx="1" fill="#d9dde3" />
+      <rect x="20.5" y="20.5" width="3.2" height="3.2" rx="1" fill="#4f86ff" />
     </svg>
   );
 }
