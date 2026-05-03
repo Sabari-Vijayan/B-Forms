@@ -159,6 +159,6 @@ export function detectLanguage(text: string): string {
   if (/\b(el|la|los|las|un|una|es|son|para|con|del|que)\b/.test(lower)) return "es";
   if (/\b(le|la|les|un|une|des|est|sont|avec|pour)\b/.test(lower)) return "fr";
   if (/\b(der|die|das|ein|eine|ist|sind|für|mit)\b/.test(lower)) return "de";
-  if (/\b(o|a|os|as|um|uma|é|são|para|com)\b/.test(lower)) return "pt";
+  if (/\b(você|está|estão|isso|esse|essa|uma|são|para|também|não|mas|quando)\b/.test(lower)) return "pt";
   return "en";
 }

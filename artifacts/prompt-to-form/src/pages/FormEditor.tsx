@@ -260,15 +260,17 @@ export default function FormEditor() {
     }
   };
 
-  // Init settings state
-  useState(() => {
-    if (form) {
+  // Init settings state once when form data first arrives
+  const settingsSynced = useRef(false);
+  useEffect(() => {
+    if (form && !settingsSynced.current) {
+      settingsSynced.current = true;
       setTitle(form.title);
       setDescription(form.description || "");
       setSupportedLanguages(form.supportedLanguages);
       setPreferredLanguage(form.preferredLanguage || form.originalLanguage);
     }
-  });
+  }, [form]);
 
   if (isFormLoading || isFieldsLoading) {
     return (

@@ -38,11 +38,7 @@ export default function CreateForm() {
   const [, setLocation] = useLocation();
   const [prompt, setPrompt] = useState("");
   const [generatedForm, setGeneratedForm] = useState<GenerateFormResult | null>(null);
-  const [selectedLanguage, setSelectedLanguage] = useState<string>("en");
-
-  useEffect(() => {
-    setSelectedLanguage(getBrowserLanguage());
-  }, []);
+  const [selectedLanguage, setSelectedLanguage] = useState<string>(getBrowserLanguage());
 
   const generateForm = useGenerateForm();
   const createForm = useCreateForm();
