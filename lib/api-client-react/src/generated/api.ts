@@ -588,6 +588,90 @@ export const useDeleteForm = <
 };
 
 /**
+ * @summary Duplicate a form (copies fields, resets to draft)
+ */
+export const getDuplicateFormUrl = (id: string) => {
+  return `/api/forms/${id}/duplicate`;
+};
+
+export const duplicateForm = async (
+  id: string,
+  options?: RequestInit,
+): Promise<FormWithFields> => {
+  return customFetch<FormWithFields>(getDuplicateFormUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getDuplicateFormMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof duplicateForm>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof duplicateForm>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["duplicateForm"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof duplicateForm>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return duplicateForm(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DuplicateFormMutationResult = NonNullable<
+  Awaited<ReturnType<typeof duplicateForm>>
+>;
+
+export type DuplicateFormMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Duplicate a form (copies fields, resets to draft)
+ */
+export const useDuplicateForm = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof duplicateForm>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof duplicateForm>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getDuplicateFormMutationOptions(options));
+};
+
+/**
  * @summary Publish a form and trigger translation
  */
 export const getPublishFormUrl = (id: string) => {

@@ -242,6 +242,87 @@ router.delete("/forms/:id", requireAuth, async (req: AuthenticatedRequest, res) 
   res.status(204).send();
 });
 
+router.post("/forms/:id/duplicate", requireAuth, async (req: AuthenticatedRequest, res) => {
+  const supabase = createSupabaseClient(req.accessToken);
+  const admin = createAdminClient();
+
+  const { data: source } = await supabase
+    .from("forms")
+    .select("*, form_fields(*)")
+    .eq("id", req.params.id)
+    .eq("user_id", req.user!.id)
+    .single();
+
+  if (!source) {
+    res.status(404).json({ error: "Form not found" });
+    return;
+  }
+
+  const slug = generateSlug();
+  const { data: newForm, error: formErr } = await admin
+    .from("forms")
+    .insert({
+      user_id: req.user!.id,
+      title: `Copy of ${source.title}`,
+      description: source.description,
+      slug,
+      original_language: source.original_language,
+      status: "draft",
+      supported_languages: [],
+    })
+    .select()
+    .single();
+
+  if (formErr || !newForm) {
+    res.status(500).json({ error: formErr?.message || "Failed to duplicate form" });
+    return;
+  }
+
+  const sourceFields = (source.form_fields || []) as Record<string, unknown>[];
+  let createdFields: unknown[] = [];
+  if (sourceFields.length > 0) {
+    const { data: fData } = await admin
+      .from("form_fields")
+      .insert(
+        sourceFields.map((f) => ({
+          form_id: newForm.id,
+          order_index: f.order_index,
+          field_type: f.field_type,
+          label: f.label,
+          placeholder: f.placeholder,
+          is_required: f.is_required,
+          options_json: f.options_json,
+        }))
+      )
+      .select();
+    if (fData) createdFields = fData;
+  }
+
+  res.status(201).json({
+    id: newForm.id,
+    userId: newForm.user_id,
+    title: newForm.title,
+    description: newForm.description,
+    slug: newForm.slug,
+    originalLanguage: newForm.original_language,
+    status: newForm.status,
+    supportedLanguages: newForm.supported_languages || [],
+    responseLimit: newForm.response_limit,
+    closesAt: newForm.closes_at,
+    createdAt: newForm.created_at,
+    fields: (createdFields as Record<string, unknown>[]).map((f) => ({
+      id: f.id,
+      formId: f.form_id,
+      orderIndex: f.order_index,
+      fieldType: f.field_type,
+      label: f.label,
+      placeholder: f.placeholder,
+      isRequired: f.is_required,
+      optionsJson: f.options_json,
+    })),
+  });
+});
+
 router.post("/forms/:id/publish", requireAuth, async (req: AuthenticatedRequest, res) => {
   const { languages } = req.body;
   const admin = createAdminClient();

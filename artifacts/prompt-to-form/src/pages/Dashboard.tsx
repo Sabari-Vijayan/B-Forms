@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { useGetDashboardSummary, useListForms, useDeleteForm } from "@workspace/api-client-react";
+import { useGetDashboardSummary, useListForms, useDeleteForm, useDuplicateForm } from "@workspace/api-client-react";
 import { Link } from "wouter";
-import { FileText, Plus, Clock, Share2, Settings, TrendingUp, Languages, Trash2 } from "lucide-react";
+import { FileText, Plus, Clock, Share2, Settings, TrendingUp, Languages, Trash2, Copy } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { SUPPORTED_LANGUAGES } from "@/lib/constants";
 import {
@@ -28,10 +28,26 @@ export default function Dashboard() {
   const { data: summary, isLoading: isSummaryLoading } = useGetDashboardSummary();
   const { data: forms, isLoading: isFormsLoading } = useListForms();
   const deleteForm = useDeleteForm();
+  const duplicateForm = useDuplicateForm();
 
   const [deletingForm, setDeletingForm] = useState<{ id: string; title: string } | null>(null);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
   const isLoading = isSummaryLoading || isFormsLoading;
+
+  const handleDuplicate = async (id: string, title: string) => {
+    setDuplicatingId(id);
+    try {
+      await duplicateForm.mutateAsync({ id });
+      toast.success(`"${title}" duplicated`);
+      queryClient.invalidateQueries({ queryKey: ["/api/forms"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/summary"] });
+    } catch {
+      toast.error("Failed to duplicate form.");
+    } finally {
+      setDuplicatingId(null);
+    }
+  };
 
   const handleDeleteConfirm = async () => {
     if (!deletingForm) return;
@@ -227,6 +243,16 @@ export default function Dashboard() {
                         <span className="hidden sm:inline">Share</span>
                       </Link>
                     )}
+                    <button
+                      onClick={() => handleDuplicate(form.id, form.title)}
+                      disabled={duplicatingId === form.id}
+                      className="flex items-center justify-center w-8 h-8 border border-border text-muted-foreground hover:border-foreground hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      title="Duplicate form"
+                    >
+                      {duplicatingId === form.id
+                        ? <span className="w-3.5 h-3.5 border border-current border-t-transparent rounded-full animate-spin" />
+                        : <Copy className="w-3.5 h-3.5" />}
+                    </button>
                     <button
                       onClick={() => setDeletingForm({ id: form.id, title: form.title })}
                       className="flex items-center justify-center w-8 h-8 border border-border text-muted-foreground hover:border-destructive hover:text-destructive transition-colors"

@@ -152,6 +152,13 @@ export const DeleteFormParams = zod.object({
 });
 
 /**
+ * @summary Duplicate a form (copies fields, resets to draft)
+ */
+export const DuplicateFormParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+/**
  * @summary Publish a form and trigger translation
  */
 export const PublishFormParams = zod.object({
