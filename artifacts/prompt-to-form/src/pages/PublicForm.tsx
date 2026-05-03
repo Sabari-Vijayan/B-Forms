@@ -295,6 +295,16 @@ export default function PublicForm() {
                         />
                       )}
 
+                      {field.fieldType === "date" && (
+                        <Input
+                          type="date"
+                          required={field.isRequired}
+                          value={formData[field.id] || ""}
+                          onChange={(e) => handleInputChange(field.id, e.target.value)}
+                          className="bg-muted/30 focus:bg-background w-auto"
+                        />
+                      )}
+
                       {field.fieldType === "rating" && (
                         <StarRating
                           value={Number(formData[field.id]) || 0}
