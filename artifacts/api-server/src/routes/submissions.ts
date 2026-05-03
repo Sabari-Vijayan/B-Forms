@@ -48,14 +48,14 @@ router.get("/forms/:id/submissions", requireAuth, async (req: AuthenticatedReque
 router.post("/public/forms/:slug/submit", async (req, res) => {
   const admin = createAdminClient();
 
-  const { data: form } = await admin
+  const { data: form, error: formLookupError } = await admin
     .from("forms")
-    .select("id, original_language, preferred_language, status, response_limit, closes_at")
+    .select("*")
     .eq("slug", req.params.slug)
     .eq("status", "published")
     .single();
 
-  if (!form) {
+  if (formLookupError || !form) {
     res.status(404).json({ error: "Form not found or not published" });
     return;
   }

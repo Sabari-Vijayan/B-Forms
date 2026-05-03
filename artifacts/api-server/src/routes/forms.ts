@@ -182,12 +182,26 @@ router.patch("/forms/:id", requireAuth, async (req: AuthenticatedRequest, res) =
   if (responseLimit !== undefined) updates.response_limit = responseLimit;
   if (closesAt !== undefined) updates.closes_at = closesAt;
 
-  const { data: form, error } = await admin
+  let { data: form, error } = await admin
     .from("forms")
     .update(updates)
     .eq("id", req.params.id)
     .select()
     .single();
+
+  // If the update failed because preferred_language column doesn't exist yet,
+  // retry without it so other fields (title, status, etc.) still save correctly.
+  if (error && error.message?.includes("preferred_language")) {
+    delete updates.preferred_language;
+    const retry = await admin
+      .from("forms")
+      .update(updates)
+      .eq("id", req.params.id)
+      .select()
+      .single();
+    form = retry.data;
+    error = retry.error;
+  }
 
   if (error || !form) {
     res.status(500).json({ error: error?.message || "Update failed" });

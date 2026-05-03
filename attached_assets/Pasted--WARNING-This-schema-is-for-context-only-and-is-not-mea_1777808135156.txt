@@ -1,0 +1,50 @@
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
+
+CREATE TABLE public.form_fields (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  form_id uuid NOT NULL,
+  order_index integer NOT NULL DEFAULT 0,
+  field_type text NOT NULL CHECK (field_type = ANY (ARRAY['short_text'::text, 'long_text'::text, 'single_choice'::text, 'multi_choice'::text, 'rating'::text, 'date'::text, 'email'::text, 'phone'::text])),
+  label text NOT NULL,
+  placeholder text,
+  is_required boolean NOT NULL DEFAULT false,
+  options_json ARRAY,
+  CONSTRAINT form_fields_pkey PRIMARY KEY (id),
+  CONSTRAINT form_fields_form_id_fkey FOREIGN KEY (form_id) REFERENCES public.forms(id)
+);
+CREATE TABLE public.form_translations (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  form_id uuid NOT NULL,
+  language text NOT NULL,
+  translations_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+  generated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT form_translations_pkey PRIMARY KEY (id),
+  CONSTRAINT form_translations_form_id_fkey FOREIGN KEY (form_id) REFERENCES public.forms(id)
+);
+CREATE TABLE public.forms (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  title text NOT NULL,
+  description text,
+  slug text NOT NULL UNIQUE,
+  original_language text NOT NULL DEFAULT 'en'::text,
+  status text NOT NULL DEFAULT 'draft'::text CHECK (status = ANY (ARRAY['draft'::text, 'published'::text, 'closed'::text])),
+  supported_languages ARRAY NOT NULL DEFAULT '{}'::text[],
+  response_limit integer,
+  closes_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT forms_pkey PRIMARY KEY (id),
+  CONSTRAINT forms_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.submissions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  form_id uuid NOT NULL,
+  respondent_language text NOT NULL,
+  raw_responses_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+  translated_responses_json jsonb,
+  translation_status text NOT NULL DEFAULT 'pending'::text CHECK (translation_status = ANY (ARRAY['pending'::text, 'done'::text, 'skipped'::text, 'failed'::text])),
+  submitted_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT submissions_pkey PRIMARY KEY (id),
+  CONSTRAINT submissions_form_id_fkey FOREIGN KEY (form_id) REFERENCES public.forms(id)
+);
