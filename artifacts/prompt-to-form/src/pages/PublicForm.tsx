@@ -60,14 +60,15 @@ export default function PublicForm() {
 
   useEffect(() => {
     if (form && !selectedLang) {
-      // Always include original language in the available set
-      const available = Array.from(new Set([form.originalLanguage, ...form.supportedLanguages]));
+      const available = Array.from(new Set([
+        form.originalLanguage,
+        ...form.supportedLanguages,
+        ...(form.translations?.map((tr) => tr.language) || []),
+      ]));
       const browserLang = normalizeLang(navigator.language);
       if (available.includes(browserLang)) {
-        // Prefer the user's own browser language
         setSelectedLang(browserLang);
       } else if (available.includes("en")) {
-        // Fall back to English before using the form's original language
         setSelectedLang("en");
       } else {
         setSelectedLang(form.originalLanguage);
@@ -97,13 +98,16 @@ export default function PublicForm() {
   }
 
   // All languages the dropdown should offer — original is always present
-  const availableLanguages = Array.from(new Set([form.originalLanguage, ...form.supportedLanguages]));
+  const availableLanguages = Array.from(new Set([
+    form.originalLanguage,
+    ...form.supportedLanguages,
+    ...(form.translations?.map((tr) => tr.language) || []),
+  ]));
 
-  // Get translations for current language (fallback to original fields if not translated yet)
-  const currentTranslation =
-    form.translations?.find((tr) => normalizeLang(tr.language) === normalizeLang(selectedLang)) ||
-    form.translations?.find((tr) => tr.language === form.originalLanguage);
-  const t = (currentTranslation?.translationsJson as Record<string, string>) || {};
+  const currentTranslation = form.translations?.find((tr) => normalizeLang(tr.language) === normalizeLang(selectedLang));
+  const translationMap = (currentTranslation?.translationsJson as Record<string, string>) || {};
+  const isTranslated = !!currentTranslation && normalizeLang(currentTranslation.language) !== normalizeLang(form.originalLanguage);
+  const t = isTranslated ? translationMap : {};
 
   const title = t.title || form.title;
   const description = t.description || form.description;
