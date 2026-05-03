@@ -856,6 +856,9 @@ components:
       properties:
         prompt:
           type: string
+        language:
+          type: string
+          description: BCP-47 language code to generate the form in (e.g. "en", "fr"). Defaults to auto-detect from prompt.
       required: [prompt]
 
     GenerateFormResult:

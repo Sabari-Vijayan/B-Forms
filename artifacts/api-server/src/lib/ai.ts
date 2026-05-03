@@ -41,11 +41,18 @@ export interface AIGeneratedForm {
   fields: AIGeneratedField[];
 }
 
-export async function generateFormFromPrompt(prompt: string): Promise<AIGeneratedForm> {
+export async function generateFormFromPrompt(prompt: string, targetLanguage?: string): Promise<AIGeneratedForm> {
+  const systemInstruction = targetLanguage
+    ? GENERATE_SYSTEM_PROMPT.replace(
+        "- The title and all labels must be in the same language as the user's prompt.",
+        `- You MUST generate the title, description, labels, placeholders, and all option values in ${targetLanguage} language, regardless of the language the prompt is written in.`
+      )
+    : GENERATE_SYSTEM_PROMPT;
+
   const model = genAI.getGenerativeModel({
     model: "gemini-2.5-flash-lite",
     generationConfig: { responseMimeType: "application/json" },
-    systemInstruction: GENERATE_SYSTEM_PROMPT,
+    systemInstruction,
   });
 
   const result = await model.generateContent(prompt);

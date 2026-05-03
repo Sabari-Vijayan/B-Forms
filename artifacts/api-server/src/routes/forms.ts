@@ -437,15 +437,16 @@ router.get("/dashboard/summary", requireAuth, async (req: AuthenticatedRequest, 
 });
 
 router.post("/ai/generate", requireAuth, async (req: AuthenticatedRequest, res) => {
-  const { prompt } = req.body;
+  const { prompt, language } = req.body;
   if (!prompt || typeof prompt !== "string" || prompt.length < 5) {
     res.status(400).json({ error: "Invalid prompt. Must be at least 5 characters." });
     return;
   }
 
   try {
-    const detectedLanguage = detectLanguage(prompt);
-    const form = await generateFormFromPrompt(prompt);
+    const targetLang = typeof language === "string" && language.length > 0 ? language : undefined;
+    const detectedLanguage = targetLang ?? detectLanguage(prompt);
+    const form = await generateFormFromPrompt(prompt, targetLang);
     res.json({
       form: {
         title: form.title,

@@ -405,6 +405,12 @@ export const SubmitFormBody = zod.object({
  */
 export const GenerateFormBody = zod.object({
   prompt: zod.string(),
+  language: zod
+    .string()
+    .optional()
+    .describe(
+      'BCP-47 language code to generate the form in (e.g. \"en\", \"fr\"). Defaults to auto-detect from prompt.',
+    ),
 });
 
 export const GenerateFormResponse = zod.object({

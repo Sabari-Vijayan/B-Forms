@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { useGenerateForm, useCreateForm } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -7,10 +7,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
-import { Sparkles, Wand2, ArrowRight, Languages, Loader2 } from "lucide-react";
-import type { GenerateFormResult, CreateFieldBody } from "@workspace/api-client-react/src/generated/api.schemas";
+import { Sparkles, Wand2, ArrowRight, Globe, Loader2 } from "lucide-react";
+import type { GenerateFormResult, CreateFieldBody } from "@workspace/api-client-react";
 import { SUPPORTED_LANGUAGES } from "@/lib/constants";
 
 const SUGGESTIONS = [
@@ -22,41 +29,53 @@ const SUGGESTIONS = [
   "Employee onboarding checklist"
 ];
 
+function getBrowserLanguage(): string {
+  const lang = navigator.language?.split("-")[0];
+  return SUPPORTED_LANGUAGES.find(l => l.code === lang) ? lang : "en";
+}
+
 export default function CreateForm() {
   const [, setLocation] = useLocation();
   const [prompt, setPrompt] = useState("");
   const [generatedForm, setGeneratedForm] = useState<GenerateFormResult | null>(null);
-  
+  const [selectedLanguage, setSelectedLanguage] = useState<string>("en");
+
+  useEffect(() => {
+    setSelectedLanguage(getBrowserLanguage());
+  }, []);
+
   const generateForm = useGenerateForm();
   const createForm = useCreateForm();
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
-    
+
     try {
-      const result = await generateForm.mutateAsync({ data: { prompt } });
+      const result = await generateForm.mutateAsync({
+        data: { prompt, language: selectedLanguage },
+      });
       setGeneratedForm(result);
       toast.success("Form generated successfully!");
-    } catch (err) {
+    } catch {
       toast.error("Failed to generate form. Please try again.");
     }
   };
 
   const handleSaveDraft = async () => {
     if (!generatedForm) return;
-    
+
     try {
       const result = await createForm.mutateAsync({
         data: {
           title: generatedForm.form.title,
           description: generatedForm.form.description,
-          originalLanguage: generatedForm.detectedLanguage || 'en',
-          fields: generatedForm.form.fields
-        }
+          originalLanguage: selectedLanguage,
+          fields: generatedForm.form.fields,
+        },
       });
       toast.success("Draft saved!");
       setLocation(`/forms/${result.id}`);
-    } catch (err) {
+    } catch {
       toast.error("Failed to save draft.");
     }
   };
@@ -67,13 +86,12 @@ export default function CreateForm() {
     newFields[index] = { ...newFields[index], ...updates };
     setGeneratedForm({
       ...generatedForm,
-      form: { ...generatedForm.form, fields: newFields }
+      form: { ...generatedForm.form, fields: newFields },
     });
   };
 
-  const getLanguageName = (code: string) => {
-    return SUPPORTED_LANGUAGES.find(l => l.code === code)?.name || code;
-  };
+  const getLanguageName = (code: string) =>
+    SUPPORTED_LANGUAGES.find(l => l.code === code)?.name || code;
 
   return (
     <DashboardLayout>
@@ -83,40 +101,67 @@ export default function CreateForm() {
             <Sparkles className="w-8 h-8 text-primary" />
             Create with AI
           </h1>
-          <p className="text-muted-foreground mt-2 text-lg">Describe what you need, and we'll build a multilingual form for you.</p>
+          <p className="text-muted-foreground mt-2 text-lg">
+            Describe what you need, and we'll build a multilingual form for you.
+          </p>
         </div>
 
         {!generatedForm && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="relative shadow-lg shadow-primary/5 rounded-xl">
-              <Textarea 
+              <Textarea
                 placeholder="E.g., A feedback form for our new SaaS product, asking about ease of use, missing features, and overall rating..."
-                className="min-h-[160px] text-lg p-6 resize-none bg-card border-primary/20 focus-visible:ring-primary/30"
+                className="min-h-[160px] text-lg p-6 pb-16 resize-none bg-card border-primary/20 focus-visible:ring-primary/30"
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleGenerate();
+                }}
               />
-              <div className="absolute bottom-4 right-4">
-                <Button 
-                  onClick={handleGenerate} 
+              <div className="absolute bottom-3 left-4 right-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
+                    <SelectTrigger className="h-8 w-40 text-sm border-muted bg-background/80 shadow-none">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SUPPORTED_LANGUAGES.map(lang => (
+                        <SelectItem key={lang.code} value={lang.code} className="text-sm">
+                          {lang.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span className="text-xs text-muted-foreground hidden sm:block">
+                    Form language
+                  </span>
+                </div>
+                <Button
+                  onClick={handleGenerate}
                   disabled={!prompt.trim() || generateForm.isPending}
-                  className="h-12 px-6 shadow-md"
+                  className="h-8 px-4 text-sm shadow-md"
                 >
                   {generateForm.isPending ? (
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   ) : (
-                    <Wand2 className="w-5 h-5 mr-2" />
+                    <Wand2 className="w-4 h-4 mr-2" />
                   )}
-                  Generate Form
+                  Generate
                 </Button>
               </div>
             </div>
 
             {generateForm.isPending && (
-              <div className="space-y-4 pt-8">
-                <div className="h-8 w-48 bg-muted rounded-md animate-pulse"></div>
+              <div className="space-y-4 pt-4">
+                <div className="h-8 w-48 bg-muted rounded-md animate-pulse" />
                 <div className="space-y-3">
                   {[1, 2, 3, 4].map(i => (
-                    <div key={i} className="h-20 bg-muted/50 rounded-xl animate-pulse" style={{ animationDelay: `${i * 150}ms`}}></div>
+                    <div
+                      key={i}
+                      className="h-20 bg-muted/50 rounded-xl animate-pulse"
+                      style={{ animationDelay: `${i * 150}ms` }}
+                    />
                   ))}
                 </div>
               </div>
@@ -124,12 +169,14 @@ export default function CreateForm() {
 
             {!generateForm.isPending && (
               <div>
-                <Label className="text-sm font-medium text-muted-foreground mb-3 block">Try a prompt:</Label>
+                <Label className="text-sm font-medium text-muted-foreground mb-3 block">
+                  Try a prompt:
+                </Label>
                 <div className="flex flex-wrap gap-2">
                   {SUGGESTIONS.map((suggestion, i) => (
-                    <Badge 
-                      key={i} 
-                      variant="secondary" 
+                    <Badge
+                      key={i}
+                      variant="secondary"
                       className="cursor-pointer hover:bg-primary/10 hover:text-primary transition-colors px-3 py-1.5 text-sm font-normal"
                       onClick={() => setPrompt(suggestion)}
                     >
@@ -147,22 +194,43 @@ export default function CreateForm() {
             <div className="bg-card border border-border shadow-sm rounded-xl p-6">
               <div className="flex items-start justify-between mb-6">
                 <div className="space-y-2 flex-1">
-                  <Input 
+                  <Input
                     value={generatedForm.form.title}
-                    onChange={(e) => setGeneratedForm({ ...generatedForm, form: { ...generatedForm.form, title: e.target.value }})}
+                    onChange={(e) =>
+                      setGeneratedForm({
+                        ...generatedForm,
+                        form: { ...generatedForm.form, title: e.target.value },
+                      })
+                    }
                     className="text-2xl font-bold border-transparent hover:border-input focus:border-input px-0 h-auto py-1 shadow-none"
                   />
-                  <Input 
+                  <Input
                     value={generatedForm.form.description || ""}
-                    onChange={(e) => setGeneratedForm({ ...generatedForm, form: { ...generatedForm.form, description: e.target.value }})}
+                    onChange={(e) =>
+                      setGeneratedForm({
+                        ...generatedForm,
+                        form: { ...generatedForm.form, description: e.target.value },
+                      })
+                    }
                     className="text-muted-foreground border-transparent hover:border-input focus:border-input px-0 h-auto py-1 shadow-none"
                     placeholder="Add a description..."
                   />
                 </div>
-                <Badge variant="outline" className="ml-4 flex items-center gap-1.5 bg-primary/5 text-primary border-primary/20 shrink-0">
-                  <Languages className="w-3.5 h-3.5" />
-                  Detected: {getLanguageName(generatedForm.detectedLanguage)}
-                </Badge>
+                <div className="ml-4 shrink-0 flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-muted-foreground" />
+                  <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
+                    <SelectTrigger className="h-8 w-36 text-sm border-primary/20 bg-primary/5 text-primary shadow-none">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SUPPORTED_LANGUAGES.map(lang => (
+                        <SelectItem key={lang.code} value={lang.code} className="text-sm">
+                          {lang.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <div className="space-y-3">
@@ -174,17 +242,22 @@ export default function CreateForm() {
                         {index + 1}
                       </div>
                       <div className="flex-1 space-y-2">
-                        <Input 
+                        <Input
                           value={field.label}
                           onChange={(e) => updateField(index, { label: e.target.value })}
                           className="font-medium bg-transparent border-transparent hover:border-input focus:bg-background"
                         />
                         <div className="flex gap-2 items-center">
                           <Badge variant="secondary" className="text-xs font-normal capitalize">
-                            {field.fieldType.replace('_', ' ')}
+                            {field.fieldType.replace("_", " ")}
                           </Badge>
                           {field.isRequired && (
-                            <Badge variant="outline" className="text-xs font-normal text-destructive border-destructive/30 bg-destructive/5">Required</Badge>
+                            <Badge
+                              variant="outline"
+                              className="text-xs font-normal text-destructive border-destructive/30 bg-destructive/5"
+                            >
+                              Required
+                            </Badge>
                           )}
                         </div>
                       </div>
@@ -195,11 +268,18 @@ export default function CreateForm() {
             </div>
 
             <div className="flex justify-end gap-3 sticky bottom-4 bg-background/80 backdrop-blur-md p-4 rounded-xl border border-border shadow-lg">
-              <Button variant="outline" onClick={() => setGeneratedForm(null)}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setGeneratedForm(null);
+                }}
+              >
                 Start Over
               </Button>
               <Button onClick={handleSaveDraft} disabled={createForm.isPending}>
-                {createForm.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                {createForm.isPending && (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                )}
                 Save and Continue
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>

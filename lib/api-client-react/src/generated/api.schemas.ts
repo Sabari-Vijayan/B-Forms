@@ -252,6 +252,8 @@ export interface SubmitFormBody {
 
 export interface GenerateFormBody {
   prompt: string;
+  /** BCP-47 language code to generate the form in (e.g. "en", "fr"). Defaults to auto-detect from prompt. */
+  language?: string;
 }
 
 export type GenerateFormResultForm = {
