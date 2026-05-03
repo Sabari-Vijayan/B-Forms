@@ -19,10 +19,10 @@ function AuthBanner() {
   ];
 
   const bars = [
-    { w: 290, shade: "#0f0f0f" },
-    { w: 210, shade: "#444" },
-    { w: 145, shade: "#888" },
-    { w: 85,  shade: "#bbb" },
+    { w: 290, shade: "#222222" },
+    { w: 210, shade: "#555" },
+    { w: 145, shade: "#999" },
+    { w: 85,  shade: "#c4c4c4" },
   ];
 
   return (
@@ -45,22 +45,22 @@ function AuthBanner() {
 
       {/* ── SECTION 1: Form fields (left) ───────────────────────────── */}
       {/* Title bar */}
-      <rect x="60" y="28" width="200" height="10" fill="#0f0f0f" />
+      <rect x="60" y="28" width="200" height="10" fill="#222222" />
       <rect x="268" y="28" width="80" height="10" fill="#d8d8d8" />
 
       {/* Row of two inputs */}
       <rect x="60" y="52" width="7" height="7" fill="#ccc" />
       <rect x="72" y="53" width="70" height="5" fill="#ccc" />
-      <rect x="60" y="62" width="188" height="18" fill="none" stroke="#0f0f0f" strokeWidth="1" />
+      <rect x="60" y="62" width="188" height="18" fill="none" stroke="#c8c8c8" strokeWidth="1" />
 
       <rect x="260" y="52" width="7" height="7" fill="#ccc" />
       <rect x="272" y="53" width="55" height="5" fill="#ccc" />
-      <rect x="260" y="62" width="160" height="18" fill="none" stroke="#0f0f0f" strokeWidth="1" />
+      <rect x="260" y="62" width="160" height="18" fill="none" stroke="#c8c8c8" strokeWidth="1" />
 
       {/* Textarea */}
       <rect x="60" y="96" width="7" height="7" fill="#ccc" />
       <rect x="72" y="97" width="85" height="5" fill="#ccc" />
-      <rect x="60" y="107" width="360" height="52" fill="none" stroke="#0f0f0f" strokeWidth="1" />
+      <rect x="60" y="107" width="360" height="52" fill="none" stroke="#c8c8c8" strokeWidth="1" />
       <line x1="76" y1="122" x2="404" y2="122" stroke="#e4e4e4" strokeWidth="0.5" />
       <line x1="76" y1="136" x2="370" y2="136" stroke="#e4e4e4" strokeWidth="0.5" />
       <line x1="76" y1="150" x2="390" y2="150" stroke="#e4e4e4" strokeWidth="0.5" />
@@ -69,19 +69,19 @@ function AuthBanner() {
       <line x1="480" y1="16" x2="480" y2="184" stroke="#d4d4d4" strokeWidth="1" strokeDasharray="3 4" />
 
       {/* ── SECTION 2: Choice question (center) ─────────────────────── */}
-      <rect x="516" y="28" width="260" height="10" fill="#0f0f0f" />
+      <rect x="516" y="28" width="260" height="10" fill="#222222" />
       <rect x="784" y="28" width="100" height="10" fill="#e0e0e0" />
 
       {radioOptions.map(({ y, w, filled }, i) => (
         <g key={`opt-${i}`}>
           <circle cx="527" cy={y} r="8"
-            fill={filled ? "#0f0f0f" : "none"}
-            stroke="#0f0f0f"
+            fill={filled ? "#222222" : "none"}
+            stroke={filled ? "none" : "#c8c8c8"}
             strokeWidth={filled ? 0 : 1.5}
           />
           {filled && <circle cx="527" cy={y} r="3.5" fill="#fafafa" />}
           <rect x="546" y={y - 5} width={w} height="8"
-            fill={filled ? "#0f0f0f" : "#d8d8d8"}
+            fill={filled ? "#222222" : "#d8d8d8"}
           />
         </g>
       ))}
@@ -95,8 +95,8 @@ function AuthBanner() {
           <path key={`star-${i}`}
             d={star}
             transform={`translate(${cx},${cy})`}
-            fill={i < 3 ? "#0f0f0f" : "none"}
-            stroke="#0f0f0f"
+            fill={i < 3 ? "#222222" : "none"}
+            stroke={i < 3 ? "none" : "#c8c8c8"}
             strokeWidth={i < 3 ? 0 : 1}
           />
         );
@@ -107,7 +107,7 @@ function AuthBanner() {
       <line x1="910" y1="16" x2="910" y2="184" stroke="#d4d4d4" strokeWidth="1" strokeDasharray="3 4" />
 
       {/* ── SECTION 3: Response analytics (right) ──────────────────── */}
-      <rect x="944" y="28" width="120" height="10" fill="#0f0f0f" />
+      <rect x="944" y="28" width="120" height="10" fill="#222222" />
       <rect x="1072" y="28" width="60" height="10" fill="#e0e0e0" />
 
       {bars.map(({ w, shade }, i) => {
@@ -123,7 +123,7 @@ function AuthBanner() {
 
       {/* Submit button area */}
       <rect x="944" y="168" width="230" height="18" fill="none" stroke="#d0d0d0" strokeWidth="1" />
-      <rect x="1192" y="168" width="180" height="18" fill="#0f0f0f" />
+      <rect x="1192" y="168" width="180" height="18" fill="#222222" />
       <rect x="1210" y="176" width="80" height="5" fill="#fafafa" />
       <rect x="1298" y="176" width="12" height="5" fill="#666" />
 

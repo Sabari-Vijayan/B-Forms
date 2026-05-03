@@ -14,7 +14,7 @@ export function LogoIcon({ size = 28, className }: LogoIconProps) {
       className={className}
       aria-label="Prompt to Form"
     >
-      <rect width="32" height="32" rx="5" fill="#0f0f0f" />
+      <rect width="32" height="32" rx="5" fill="#212121" />
       {/* Faint label line + input bar — row 1 */}
       <rect x="7" y="7" width="9" height="1.5" rx="0.75" fill="white" opacity="0.45" />
       <rect x="7" y="10" width="18" height="3.5" rx="1" fill="white" />
