@@ -102,6 +102,14 @@ export default function FormEditor() {
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
+  // ── New field form state ───────────────────────────────────────────────────
+  const [isAddingField, setIsAddingField] = useState(false);
+  const [newFieldType, setNewFieldType] = useState<FormFieldFieldType>("short_text");
+  const [newFieldLabel, setNewFieldLabel] = useState("");
+  const [newFieldPlaceholder, setNewFieldPlaceholder] = useState("");
+  const [newFieldRequired, setNewFieldRequired] = useState(false);
+  const [newFieldOptions, setNewFieldOptions] = useState<string[]>(["Option 1", "Option 2"]);
+
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
 
   // Live polling: track count when responses tab first opens to show "N new" badge
@@ -267,20 +275,36 @@ export default function FormEditor() {
     }
   };
 
-  const handleAddField = async (type: FormFieldFieldType) => {
+  const openAddField = () => {
+    setNewFieldType("short_text");
+    setNewFieldLabel("");
+    setNewFieldPlaceholder("");
+    setNewFieldRequired(false);
+    setNewFieldOptions(["Option 1", "Option 2"]);
+    setIsAddingField(true);
+  };
+
+  const handleSubmitNewField = async () => {
+    if (!newFieldLabel.trim()) return;
+    const isChoice = newFieldType === "single_choice" || newFieldType === "multi_choice";
     try {
-      await createField.mutateAsync({
+      const created = await createField.mutateAsync({
         id,
         data: {
-          fieldType: type,
-          label: "New Question",
-          isRequired: false,
-          orderIndex: (fields?.length || 0)
+          fieldType: newFieldType,
+          label: newFieldLabel.trim(),
+          placeholder: newFieldPlaceholder.trim() || null,
+          isRequired: newFieldRequired,
+          optionsJson: isChoice ? newFieldOptions.filter(o => o.trim()) : undefined,
+          orderIndex: orderedIds.length,
         }
       });
-      toast.success("Field added");
       queryClient.invalidateQueries({ queryKey: ["/api/forms", id, "fields"] });
-    } catch (e) {
+      // Append the new field id to local order so it shows up immediately
+      setOrderedIds(prev => [...prev, (created as { id: string }).id]);
+      toast.success("Field added");
+      setIsAddingField(false);
+    } catch {
       toast.error("Failed to add field");
     }
   };
@@ -468,18 +492,137 @@ export default function FormEditor() {
               </SortableContext>
             </DndContext>
 
-            {/* Add field row */}
-            <div className="border border-dashed border-border p-5">
-              <p className="text-xs text-muted-foreground uppercase tracking-wide mb-3">Add a field</p>
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(FIELD_ICONS).map(([type, Icon]) => (
-                  <Button key={type} variant="outline" size="sm" onClick={() => handleAddField(type as FormFieldFieldType)}>
-                    <Icon className="w-4 h-4 mr-2" />
-                    {type.replace(/_/g, ' ')}
-                  </Button>
-                ))}
-              </div>
-            </div>
+            {/* Add field section */}
+            {isAddingField ? (
+              <Card className="border-2 border-dashed border-foreground/20 bg-muted/20">
+                <CardContent className="p-5 space-y-5">
+                  {/* Type picker */}
+                  <div>
+                    <Label className="text-xs text-muted-foreground uppercase tracking-wide mb-2 block">Field Type</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {Object.entries(FIELD_ICONS).map(([type, Icon]) => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => {
+                            setNewFieldType(type as FormFieldFieldType);
+                            if (type === "single_choice" || type === "multi_choice") {
+                              setNewFieldOptions(["Option 1", "Option 2"]);
+                            }
+                          }}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 text-sm border rounded-md transition-colors capitalize ${
+                            newFieldType === type
+                              ? "bg-foreground text-background border-foreground"
+                              : "border-border hover:bg-muted/60"
+                          }`}
+                        >
+                          <Icon className="w-3.5 h-3.5" />
+                          {type.replace(/_/g, " ")}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Label */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground uppercase tracking-wide">Question Label</Label>
+                    <Input
+                      autoFocus
+                      value={newFieldLabel}
+                      onChange={(e) => setNewFieldLabel(e.target.value)}
+                      placeholder="e.g. What is your name?"
+                      onKeyDown={(e) => { if (e.key === "Enter" && newFieldLabel.trim()) handleSubmitNewField(); }}
+                    />
+                  </div>
+
+                  {/* Placeholder — text-type fields only */}
+                  {(newFieldType === "short_text" || newFieldType === "long_text" || newFieldType === "email" || newFieldType === "phone") && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground uppercase tracking-wide">Placeholder (optional)</Label>
+                      <Input
+                        value={newFieldPlaceholder}
+                        onChange={(e) => setNewFieldPlaceholder(e.target.value)}
+                        placeholder="Hint text shown inside the input…"
+                        className="bg-muted/40"
+                      />
+                    </div>
+                  )}
+
+                  {/* Options — choice fields only */}
+                  {(newFieldType === "single_choice" || newFieldType === "multi_choice") && (
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground uppercase tracking-wide block">Options</Label>
+                      <div className="space-y-2 pl-2 border-l-2 border-border">
+                        {newFieldOptions.map((opt, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full border border-muted-foreground/40 flex-shrink-0" />
+                            <Input
+                              value={opt}
+                              onChange={(e) => {
+                                const next = [...newFieldOptions];
+                                next[i] = e.target.value;
+                                setNewFieldOptions(next);
+                              }}
+                              className="h-8 text-sm"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setNewFieldOptions(newFieldOptions.filter((_, j) => j !== i))}
+                              className="text-muted-foreground hover:text-destructive transition-colors"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => setNewFieldOptions([...newFieldOptions, `Option ${newFieldOptions.length + 1}`])}
+                          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mt-1"
+                        >
+                          <Plus className="w-3 h-3" /> Add option
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Required toggle + actions */}
+                  <div className="flex items-center justify-between pt-1 border-t border-border/50">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="new-field-required"
+                        checked={newFieldRequired}
+                        onCheckedChange={setNewFieldRequired}
+                      />
+                      <Label htmlFor="new-field-required" className="text-sm cursor-pointer">Required</Label>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => setIsAddingField(false)}>
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={!newFieldLabel.trim() || createField.isPending}
+                        onClick={handleSubmitNewField}
+                      >
+                        {createField.isPending
+                          ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                          : <Plus className="w-3.5 h-3.5 mr-1" />}
+                        Add Field
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Button
+                variant="outline"
+                className="w-full border-dashed h-11 text-muted-foreground hover:text-foreground"
+                onClick={openAddField}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Field
+              </Button>
+            )}
           </TabsContent>
 
           <TabsContent value="settings" className="mt-6">
