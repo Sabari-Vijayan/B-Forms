@@ -8,10 +8,44 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Globe } from "lucide-react";
+import { Loader2, Globe, Star } from "lucide-react";
 import { toast } from "sonner";
 import { SUPPORTED_LANGUAGES } from "@/lib/constants";
 import confetti from "canvas-confetti";
+
+function StarRating({ value, onChange, required }: { value: number; onChange: (v: number) => void; required?: boolean }) {
+  const [hovered, setHovered] = useState(0);
+  const display = hovered || value;
+  return (
+    <div className="flex items-center gap-1" role="group" aria-label="Rating">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <button
+          key={star}
+          type="button"
+          onClick={() => onChange(star === value ? 0 : star)}
+          onMouseEnter={() => setHovered(star)}
+          onMouseLeave={() => setHovered(0)}
+          className="p-0.5 transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+          aria-label={`${star} star${star !== 1 ? "s" : ""}`}
+        >
+          <Star
+            className={`w-8 h-8 transition-colors ${
+              star <= display
+                ? "fill-foreground stroke-foreground"
+                : "fill-transparent stroke-muted-foreground/40"
+            }`}
+          />
+        </button>
+      ))}
+      {required && value === 0 && (
+        <input type="number" required className="sr-only" value="" onChange={() => {}} aria-hidden="true" tabIndex={-1} />
+      )}
+      {value > 0 && (
+        <span className="ml-2 text-sm text-muted-foreground">{value} / 5</span>
+      )}
+    </div>
+  );
+}
 
 export default function PublicForm() {
   const { slug } = useParams();
@@ -258,6 +292,14 @@ export default function PublicForm() {
                           value={formData[field.id] || ""}
                           onChange={(e) => handleInputChange(field.id, e.target.value)}
                           className="bg-muted/30 focus:bg-background"
+                        />
+                      )}
+
+                      {field.fieldType === "rating" && (
+                        <StarRating
+                          value={Number(formData[field.id]) || 0}
+                          onChange={(val) => handleInputChange(field.id, val)}
+                          required={field.isRequired}
                         />
                       )}
                     </div>
