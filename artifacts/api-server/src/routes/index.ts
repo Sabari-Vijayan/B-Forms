@@ -5,6 +5,7 @@ import formsRouter from "./forms.js";
 import fieldsRouter from "./fields.js";
 import submissionsRouter from "./submissions.js";
 import publicRouter from "./public.js";
+import templatesRouter from "./templates.js";
 
 const router: IRouter = Router();
 
@@ -14,5 +15,6 @@ router.use(formsRouter);
 router.use(fieldsRouter);
 router.use(submissionsRouter);
 router.use(publicRouter);
+router.use(templatesRouter);
 
 export default router;

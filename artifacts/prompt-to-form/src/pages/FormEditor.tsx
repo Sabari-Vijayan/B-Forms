@@ -14,6 +14,9 @@ import {
   useDeleteFormField,
   useReorderFields,
   useDeleteForm,
+  useGetFormTemplate,
+  useSaveFormTemplate,
+  useRemoveFormTemplate,
 } from "@workspace/api-client-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -29,7 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Settings, List, FileSpreadsheet, Share2, GripVertical, Trash2, Plus, Type, AlignLeft, CheckSquare, ListChecks, Star, Calendar, Mail, Phone, Download, X, ChevronRight } from "lucide-react";
+import { Loader2, Settings, List, FileSpreadsheet, Share2, GripVertical, Trash2, Plus, Type, AlignLeft, CheckSquare, ListChecks, Star, Calendar, Mail, Phone, Download, X, ChevronRight, LayoutTemplate } from "lucide-react";
 import type { Submission } from "@workspace/api-client-react/src/generated/api.schemas";
 import { SUPPORTED_LANGUAGES } from "@/lib/constants";
 import { format, subDays, startOfDay } from "date-fns";
@@ -99,8 +102,30 @@ export default function FormEditor() {
   const updateField = useUpdateFormField();
   const deleteField = useDeleteFormField();
   const reorderFields = useReorderFields();
+  const saveTemplate = useSaveFormTemplate();
+  const removeTemplate = useRemoveFormTemplate();
+
+  const { data: existingTemplate, refetch: refetchTemplate } = useGetFormTemplate(id, {
+    query: { enabled: !!id, retry: false },
+  });
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  // Template state
+  const [tmplTitle, setTmplTitle] = useState("");
+  const [tmplDescription, setTmplDescription] = useState("");
+  const [tmplCategory, setTmplCategory] = useState("general");
+  const [tmplIsPublic, setTmplIsPublic] = useState(true);
+
+  // Sync template fields when existing template loads
+  useEffect(() => {
+    if (existingTemplate) {
+      setTmplTitle(existingTemplate.title);
+      setTmplDescription(existingTemplate.description || "");
+      setTmplCategory(existingTemplate.category);
+      setTmplIsPublic(existingTemplate.isPublic);
+    }
+  }, [existingTemplate]);
 
   // ── New field form state ───────────────────────────────────────────────────
   const [isAddingField, setIsAddingField] = useState(false);
@@ -707,6 +732,110 @@ export default function FormEditor() {
               </CardContent>
               <CardFooter>
                 <Button onClick={handleSaveSettings}>Save Settings</Button>
+              </CardFooter>
+            </Card>
+
+            {/* ── Template Card ─────────────────────────────────────────────── */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <LayoutTemplate className="w-4 h-4 text-muted-foreground" />
+                    <CardTitle className="text-base">Template Gallery</CardTitle>
+                  </div>
+                  {existingTemplate && (
+                    <span className="text-xs font-medium uppercase tracking-wide border border-border px-2 py-0.5">
+                      {existingTemplate.isPublic ? "Public" : "Private"}
+                    </span>
+                  )}
+                </div>
+                <CardDescription>
+                  {existingTemplate
+                    ? `Published as a template — ${existingTemplate.useCount} use${existingTemplate.useCount !== 1 ? "s" : ""} so far.`
+                    : "Publish this form to the template gallery so others can use it as a starting point."}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Template Title</Label>
+                  <Input
+                    value={tmplTitle || form.title}
+                    onChange={(e) => setTmplTitle(e.target.value)}
+                    placeholder={form.title}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Description <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                  <Textarea
+                    value={tmplDescription}
+                    onChange={(e) => setTmplDescription(e.target.value)}
+                    placeholder="Describe what this template is for…"
+                    rows={2}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Category</Label>
+                  <Select value={tmplCategory} onValueChange={setTmplCategory}>
+                    <SelectTrigger className="bg-muted/30">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {["general","survey","feedback","registration","quiz","contact","event","hr","education"].map(c => (
+                        <SelectItem key={c} value={c} className="capitalize">{c.charAt(0).toUpperCase() + c.slice(1)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center justify-between py-1">
+                  <div>
+                    <p className="text-sm font-medium">Public visibility</p>
+                    <p className="text-xs text-muted-foreground">Anyone can browse and use this template.</p>
+                  </div>
+                  <Switch checked={tmplIsPublic} onCheckedChange={setTmplIsPublic} />
+                </div>
+              </CardContent>
+              <CardFooter className="flex gap-3">
+                <Button
+                  onClick={async () => {
+                    try {
+                      await saveTemplate.mutateAsync({
+                        id,
+                        data: {
+                          title: tmplTitle || form.title,
+                          description: tmplDescription || null,
+                          category: tmplCategory,
+                          isPublic: tmplIsPublic,
+                        },
+                      });
+                      await refetchTemplate();
+                      toast.success(existingTemplate ? "Template updated" : "Form published as template");
+                    } catch {
+                      toast.error("Failed to save template.");
+                    }
+                  }}
+                  disabled={saveTemplate.isPending}
+                >
+                  {saveTemplate.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  {existingTemplate ? "Update Template" : "Publish as Template"}
+                </Button>
+                {existingTemplate && (
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      try {
+                        await removeTemplate.mutateAsync({ id });
+                        await refetchTemplate();
+                        toast.success("Removed from template gallery");
+                      } catch {
+                        toast.error("Failed to remove template.");
+                      }
+                    }}
+                    disabled={removeTemplate.isPending}
+                  >
+                    {removeTemplate.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                    Remove from Gallery
+                  </Button>
+                )}
               </CardFooter>
             </Card>
 

@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useGetMe } from "@workspace/api-client-react";
 import { logout } from "@/lib/auth";
-import { LogOut, LayoutDashboard, Plus } from "lucide-react";
+import { LogOut, LayoutDashboard, Plus, LayoutTemplate } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { LogoIcon } from "@/components/Logo";
 
@@ -84,6 +84,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <nav className="flex-1 p-4 flex flex-col gap-1">
           {navLink("/", "Dashboard", LayoutDashboard)}
           {navLink("/create", "Create Form", Plus)}
+          {navLink("/templates", "Templates", LayoutTemplate)}
         </nav>
 
         <div className="p-4 border-t border-border">
@@ -115,7 +116,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         {/* Mobile Bottom Nav */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-background border-t border-border flex items-center justify-around z-20">
           {mobileNavLink("/", "Dashboard", LayoutDashboard)}
-          {mobileNavLink("/create", "New Form", Plus)}
+          {mobileNavLink("/create", "New", Plus)}
+          {mobileNavLink("/templates", "Templates", LayoutTemplate)}
           <button
             onClick={handleLogout}
             className="flex flex-col items-center gap-1 px-5 py-2 text-xs text-muted-foreground"

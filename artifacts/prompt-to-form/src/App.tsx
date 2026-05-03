@@ -10,6 +10,7 @@ import FormEditor from "@/pages/FormEditor";
 import FormShare from "@/pages/FormShare";
 import PublicForm from "@/pages/PublicForm";
 import AuthCallback from "@/pages/AuthCallback";
+import Templates from "@/pages/Templates";
 
 const queryClient = new QueryClient();
 
@@ -22,6 +23,7 @@ function Router() {
       <Route path="/create" component={CreateForm} />
       <Route path="/forms/:id" component={FormEditor} />
       <Route path="/forms/:id/share" component={FormShare} />
+      <Route path="/templates" component={Templates} />
       <Route path="/f/:slug" component={PublicForm} />
       <Route component={NotFound} />
     </Switch>

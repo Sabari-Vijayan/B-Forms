@@ -267,6 +267,31 @@ export interface GenerateFormResult {
   detectedLanguage: string;
 }
 
+export interface FormTemplate {
+  id: string;
+  formId: string;
+  userId: string;
+  title: string;
+  description?: string | null;
+  category: string;
+  isPublic: boolean;
+  useCount: number;
+  createdAt: string;
+  fieldCount: number;
+  fields?: FormField[];
+}
+
+export interface SaveTemplateBody {
+  title: string;
+  description?: string | null;
+  category?: string;
+  isPublic: boolean;
+}
+
+export type ListTemplatesParams = {
+  category?: string;
+};
+
 export type ReorderFields200 = {
   success: boolean;
 };

@@ -19,6 +19,8 @@ tags:
     description: Form submissions
   - name: translations
     description: Form translations
+  - name: templates
+    description: Form templates
 paths:
   /healthz:
     get:
@@ -218,6 +220,146 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PublishFormResult"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /templates:
+    get:
+      operationId: listTemplates
+      tags: [templates]
+      summary: Browse public templates (no auth required)
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of public templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FormTemplate"
+
+  /templates/my:
+    get:
+      operationId: listMyTemplates
+      tags: [templates]
+      summary: List templates owned by current user
+      responses:
+        "200":
+          description: My templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FormTemplate"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /templates/{id}/use:
+    post:
+      operationId: useTemplate
+      tags: [templates]
+      summary: Copy a template into the current user's forms
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: New form created from template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormWithFields"
+        "404":
+          description: Template not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /forms/{id}/template:
+    get:
+      operationId: getFormTemplate
+      tags: [templates]
+      summary: Get the template entry for a form (if any)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Template entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormTemplate"
+        "404":
+          description: Not a template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: saveFormTemplate
+      tags: [templates]
+      summary: Publish or update this form as a template
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveTemplateBody"
+      responses:
+        "200":
+          description: Template saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormTemplate"
+        "404":
+          description: Form not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: removeFormTemplate
+      tags: [templates]
+      summary: Remove this form from the template gallery
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Removed
         "404":
           description: Not found
           content:
@@ -905,3 +1047,47 @@ components:
         detectedLanguage:
           type: string
       required: [form, detectedLanguage]
+
+    FormTemplate:
+      type: object
+      properties:
+        id:
+          type: string
+        formId:
+          type: string
+        userId:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        category:
+          type: string
+        isPublic:
+          type: boolean
+        useCount:
+          type: integer
+        createdAt:
+          type: string
+        fieldCount:
+          type: integer
+        fields:
+          type: array
+          items:
+            $ref: "#/components/schemas/FormField"
+      required: [id, formId, userId, title, category, isPublic, useCount, createdAt, fieldCount]
+
+    SaveTemplateBody:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        category:
+          type: string
+        isPublic:
+          type: boolean
+      required: [title, isPublic]

@@ -189,6 +189,197 @@ export const PublishFormResponse = zod.object({
 });
 
 /**
+ * @summary Browse public templates (no auth required)
+ */
+export const ListTemplatesQueryParams = zod.object({
+  category: zod.coerce.string().optional(),
+});
+
+export const ListTemplatesResponseItem = zod.object({
+  id: zod.string(),
+  formId: zod.string(),
+  userId: zod.string(),
+  title: zod.string(),
+  description: zod.string().nullish(),
+  category: zod.string(),
+  isPublic: zod.boolean(),
+  useCount: zod.number(),
+  createdAt: zod.string(),
+  fieldCount: zod.number(),
+  fields: zod
+    .array(
+      zod.object({
+        id: zod.string(),
+        formId: zod.string(),
+        orderIndex: zod.number(),
+        fieldType: zod.enum([
+          "short_text",
+          "long_text",
+          "single_choice",
+          "multi_choice",
+          "rating",
+          "date",
+          "email",
+          "phone",
+        ]),
+        label: zod.string(),
+        placeholder: zod.string().nullish(),
+        isRequired: zod.boolean(),
+        optionsJson: zod.array(zod.string()).nullish(),
+      }),
+    )
+    .optional(),
+});
+export const ListTemplatesResponse = zod.array(ListTemplatesResponseItem);
+
+/**
+ * @summary List templates owned by current user
+ */
+export const ListMyTemplatesResponseItem = zod.object({
+  id: zod.string(),
+  formId: zod.string(),
+  userId: zod.string(),
+  title: zod.string(),
+  description: zod.string().nullish(),
+  category: zod.string(),
+  isPublic: zod.boolean(),
+  useCount: zod.number(),
+  createdAt: zod.string(),
+  fieldCount: zod.number(),
+  fields: zod
+    .array(
+      zod.object({
+        id: zod.string(),
+        formId: zod.string(),
+        orderIndex: zod.number(),
+        fieldType: zod.enum([
+          "short_text",
+          "long_text",
+          "single_choice",
+          "multi_choice",
+          "rating",
+          "date",
+          "email",
+          "phone",
+        ]),
+        label: zod.string(),
+        placeholder: zod.string().nullish(),
+        isRequired: zod.boolean(),
+        optionsJson: zod.array(zod.string()).nullish(),
+      }),
+    )
+    .optional(),
+});
+export const ListMyTemplatesResponse = zod.array(ListMyTemplatesResponseItem);
+
+/**
+ * @summary Copy a template into the current user's forms
+ */
+export const UseTemplateParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+/**
+ * @summary Get the template entry for a form (if any)
+ */
+export const GetFormTemplateParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const GetFormTemplateResponse = zod.object({
+  id: zod.string(),
+  formId: zod.string(),
+  userId: zod.string(),
+  title: zod.string(),
+  description: zod.string().nullish(),
+  category: zod.string(),
+  isPublic: zod.boolean(),
+  useCount: zod.number(),
+  createdAt: zod.string(),
+  fieldCount: zod.number(),
+  fields: zod
+    .array(
+      zod.object({
+        id: zod.string(),
+        formId: zod.string(),
+        orderIndex: zod.number(),
+        fieldType: zod.enum([
+          "short_text",
+          "long_text",
+          "single_choice",
+          "multi_choice",
+          "rating",
+          "date",
+          "email",
+          "phone",
+        ]),
+        label: zod.string(),
+        placeholder: zod.string().nullish(),
+        isRequired: zod.boolean(),
+        optionsJson: zod.array(zod.string()).nullish(),
+      }),
+    )
+    .optional(),
+});
+
+/**
+ * @summary Publish or update this form as a template
+ */
+export const SaveFormTemplateParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const SaveFormTemplateBody = zod.object({
+  title: zod.string(),
+  description: zod.string().nullish(),
+  category: zod.string().optional(),
+  isPublic: zod.boolean(),
+});
+
+export const SaveFormTemplateResponse = zod.object({
+  id: zod.string(),
+  formId: zod.string(),
+  userId: zod.string(),
+  title: zod.string(),
+  description: zod.string().nullish(),
+  category: zod.string(),
+  isPublic: zod.boolean(),
+  useCount: zod.number(),
+  createdAt: zod.string(),
+  fieldCount: zod.number(),
+  fields: zod
+    .array(
+      zod.object({
+        id: zod.string(),
+        formId: zod.string(),
+        orderIndex: zod.number(),
+        fieldType: zod.enum([
+          "short_text",
+          "long_text",
+          "single_choice",
+          "multi_choice",
+          "rating",
+          "date",
+          "email",
+          "phone",
+        ]),
+        label: zod.string(),
+        placeholder: zod.string().nullish(),
+        isRequired: zod.boolean(),
+        optionsJson: zod.array(zod.string()).nullish(),
+      }),
+    )
+    .optional(),
+});
+
+/**
+ * @summary Remove this form from the template gallery
+ */
+export const RemoveFormTemplateParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+/**
  * @summary List fields for a form
  */
 export const ListFormFieldsParams = zod.object({
