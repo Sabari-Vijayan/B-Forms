@@ -164,7 +164,7 @@ export default function PublicForm() {
       <div className="max-w-2xl mx-auto">
         {/* Language selector — always shows original + all published languages */}
         <div className="flex justify-end mb-4">
-          <div className="flex items-center gap-2 bg-background border rounded-md px-3 py-1.5 shadow-sm">
+          <div className="flex items-center gap-2 bg-background/95 border border-border/70 rounded-md px-3 py-1.5 shadow-sm">
             <Globe className="w-4 h-4 text-muted-foreground" />
             <select
               className="bg-transparent border-none text-sm outline-none cursor-pointer"
@@ -188,7 +188,7 @@ export default function PublicForm() {
           </Button>
         </div>
 
-        <Card className="shadow-lg border-t-4 border-t-primary animate-in fade-in slide-in-from-bottom-4 duration-500 print:shadow-none print:border-0 print:bg-white">
+        <Card className="shadow-lg border-t-4 border-t-primary/80 animate-in fade-in slide-in-from-bottom-4 duration-500 print:shadow-none print:border-0 print:bg-white">
           <form onSubmit={handleSubmit}>
             <CardHeader className="border-b pb-6 print:border-0">
               <CardTitle className="text-3xl font-bold">{title}</CardTitle>

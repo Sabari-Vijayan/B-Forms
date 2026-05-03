@@ -253,6 +253,14 @@
     background-color: var(--elevate-2);
   }
 
+  .soft-accent {
+    background-color: color-mix(in srgb, hsl(var(--foreground)) 3%, hsl(var(--background)));
+  }
+
+  .soft-accent-2 {
+    background-color: color-mix(in srgb, hsl(var(--foreground)) 5%, hsl(var(--background)));
+  }
+
   .border.hover-elevate:not(.no-hover-interaction-elevate)::after,
   .border.active-elevate:not(.no-active-interaction-elevate)::after,
   .border.hover-elevate-2:not(.no-hover-interaction-elevate)::after,

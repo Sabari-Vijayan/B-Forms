@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
-import { Loader2, Copy, ExternalLink, QrCode, CheckCircle2, AlertCircle } from "lucide-react";
+import { Loader2, Copy, ExternalLink, QrCode, CheckCircle2, AlertCircle, Download } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { SUPPORTED_LANGUAGES } from "@/lib/constants";
 
@@ -94,6 +94,19 @@ export default function FormShare() {
     toast.success("Copied to clipboard!");
   };
 
+  const handleDownloadPdf = () => {
+    const printableUrl = `${window.location.origin}/f/${form.slug}?print=1`;
+    const printWindow = window.open(printableUrl, "_blank", "noopener,noreferrer");
+    if (!printWindow) {
+      toast.error("Allow popups to open the printable version.");
+      return;
+    }
+    printWindow.addEventListener("load", () => {
+      printWindow.focus();
+      printWindow.print();
+    });
+  };
+
   return (
     <DashboardLayout>
       <div className="max-w-3xl mx-auto space-y-6">
@@ -103,7 +116,7 @@ export default function FormShare() {
         </div>
 
         {!isPublished ? (
-          <Card className="border-primary/20 shadow-md">
+          <Card className="border-primary/20 shadow-md bg-card/95">
             <CardHeader>
               <CardTitle>Ready to publish?</CardTitle>
               <CardDescription>Select the languages you want to translate this form into.</CardDescription>
@@ -131,7 +144,7 @@ export default function FormShare() {
                   </div>
                 </div>
               )}
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 bg-muted/30 p-4 rounded-lg">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 bg-muted/30 p-4 rounded-lg border border-border/60">
                 {SUPPORTED_LANGUAGES.map((lang) => (
                   <div key={lang.code} className="flex items-center space-x-2">
                     <Checkbox 
@@ -154,17 +167,21 @@ export default function FormShare() {
                 ))}
               </div>
             </CardContent>
-            <CardFooter>
+            <CardFooter className="flex flex-col sm:flex-row gap-3">
               <Button onClick={handlePublish} disabled={isPublishing} className="w-full sm:w-auto">
                 {isPublishing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                 {isPublishing ? "Publishing..." : "Publish & Translate"}
+              </Button>
+              <Button variant="outline" onClick={handleDownloadPdf} className="w-full sm:w-auto">
+                <Download className="w-4 h-4 mr-2" />
+                Download PDF
               </Button>
             </CardFooter>
           </Card>
         ) : (
           <div className="grid md:grid-cols-2 gap-6">
             <div className="space-y-6">
-              <Card>
+              <Card className="bg-card/95">
                 <CardHeader>
                   <CardTitle className="text-lg">Public Link</CardTitle>
                 </CardHeader>
@@ -178,10 +195,13 @@ export default function FormShare() {
                   <Button variant="outline" className="w-full" onClick={() => window.open(publicUrl, '_blank')}>
                     <ExternalLink className="w-4 h-4 mr-2" /> Open in new tab
                   </Button>
+                  <Button variant="secondary" className="w-full" onClick={handleDownloadPdf}>
+                    <Download className="w-4 h-4 mr-2" /> Download PDF
+                  </Button>
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="bg-card/95">
                 <CardHeader>
                   <CardTitle className="text-lg">Embed Code</CardTitle>
                 </CardHeader>
@@ -206,7 +226,7 @@ export default function FormShare() {
             </div>
 
             <div>
-              <Card className="h-full flex flex-col items-center justify-center p-8 text-center">
+              <Card className="h-full flex flex-col items-center justify-center p-8 text-center bg-card/95">
                 <CardHeader className="pb-4">
                   <CardTitle className="flex items-center justify-center gap-2">
                     <QrCode className="w-5 h-5" /> QR Code
