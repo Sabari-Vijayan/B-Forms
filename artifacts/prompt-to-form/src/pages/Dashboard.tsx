@@ -1,12 +1,19 @@
+import { useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { useGetDashboardSummary, useListForms } from "@workspace/api-client-react";
+import { useGetDashboardSummary, useListForms, useDeleteForm } from "@workspace/api-client-react";
 import { Link } from "wouter";
-import { FileText, Plus, Clock, Share2, Settings, TrendingUp, Languages } from "lucide-react";
+import { FileText, Plus, Clock, Share2, Settings, TrendingUp, Languages, Trash2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { SUPPORTED_LANGUAGES } from "@/lib/constants";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 const langName = (code: string) =>
   SUPPORTED_LANGUAGES.find((l) => l.code === code)?.name || code;
@@ -17,10 +24,28 @@ const WEEKLY_COLORS = ["#e0e7ff", "#c7d2fe", "#a5b4fc", "#818cf8", "#6366f1", "#
 const LANG_COLORS = ["#818cf8", "#34d399", "#60a5fa", "#f472b6", "#fb923c"];
 
 export default function Dashboard() {
+  const queryClient = useQueryClient();
   const { data: summary, isLoading: isSummaryLoading } = useGetDashboardSummary();
   const { data: forms, isLoading: isFormsLoading } = useListForms();
+  const deleteForm = useDeleteForm();
+
+  const [deletingForm, setDeletingForm] = useState<{ id: string; title: string } | null>(null);
 
   const isLoading = isSummaryLoading || isFormsLoading;
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingForm) return;
+    try {
+      await deleteForm.mutateAsync({ id: deletingForm.id });
+      toast.success(`"${deletingForm.title}" deleted`);
+      queryClient.invalidateQueries({ queryKey: ["/api/forms"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/summary"] });
+    } catch {
+      toast.error("Failed to delete form.");
+    } finally {
+      setDeletingForm(null);
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -202,6 +227,13 @@ export default function Dashboard() {
                         <span className="hidden sm:inline">Share</span>
                       </Link>
                     )}
+                    <button
+                      onClick={() => setDeletingForm({ id: form.id, title: form.title })}
+                      className="flex items-center justify-center w-8 h-8 border border-border text-muted-foreground hover:border-destructive hover:text-destructive transition-colors"
+                      title="Delete form"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
               ))}
@@ -222,6 +254,25 @@ export default function Dashboard() {
         </div>
 
       </div>
+      <AlertDialog open={!!deletingForm} onOpenChange={(open) => { if (!open) setDeletingForm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete form?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <strong>"{deletingForm?.title}"</strong> and all its responses will be permanently deleted. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }

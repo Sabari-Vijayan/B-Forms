@@ -9,8 +9,13 @@ import {
   useCreateFormField,
   useUpdateFormField,
   useDeleteFormField,
-  useReorderFields
+  useReorderFields,
+  useDeleteForm,
 } from "@workspace/api-client-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -65,10 +70,13 @@ export default function FormEditor() {
   });
 
   const updateForm = useUpdateForm();
+  const deleteFormMutation = useDeleteForm();
   const createField = useCreateFormField();
   const updateField = useUpdateFormField();
   const deleteField = useDeleteFormField();
   const reorderFields = useReorderFields();
+
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
 
@@ -477,6 +485,50 @@ export default function FormEditor() {
                 <Button onClick={handleSaveSettings}>Save Settings</Button>
               </CardFooter>
             </Card>
+
+            <Card className="border-destructive/30">
+              <CardHeader>
+                <CardTitle className="text-destructive text-base">Danger Zone</CardTitle>
+                <CardDescription>Permanently delete this form and all its responses. This cannot be undone.</CardDescription>
+              </CardHeader>
+              <CardFooter>
+                <Button
+                  variant="destructive"
+                  onClick={() => setShowDeleteDialog(true)}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Form
+                </Button>
+              </CardFooter>
+            </Card>
+
+            <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete this form?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    <strong>"{form.title}"</strong> and all its responses will be permanently deleted. This cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={async () => {
+                      try {
+                        await deleteFormMutation.mutateAsync({ id });
+                        toast.success("Form deleted");
+                        setLocation("/");
+                      } catch {
+                        toast.error("Failed to delete form.");
+                      }
+                    }}
+                  >
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </TabsContent>
 
           <TabsContent value="responses" className="mt-6">
