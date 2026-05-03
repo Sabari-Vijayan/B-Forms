@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Globe, Star } from "lucide-react";
+import { Loader2, Globe, Star, Download } from "lucide-react";
 import { toast } from "sonner";
 import { SUPPORTED_LANGUAGES } from "@/lib/constants";
 import confetti from "canvas-confetti";
@@ -103,6 +103,19 @@ export default function PublicForm() {
 
   const title = t.title || form.title;
   const description = t.description || form.description;
+  const printableUrl = `${window.location.origin}/f/${slug}?print=1`;
+
+  const handleDownloadPdf = () => {
+    const printWindow = window.open(printableUrl, "_blank", "noopener,noreferrer");
+    if (!printWindow) {
+      toast.error("Allow popups to open the printable version.");
+      return;
+    }
+    printWindow.addEventListener("load", () => {
+      printWindow.focus();
+      printWindow.print();
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -168,16 +181,23 @@ export default function PublicForm() {
           </div>
         </div>
 
-        <Card className="shadow-lg border-t-4 border-t-primary animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="flex justify-end mb-4">
+          <Button variant="outline" onClick={handleDownloadPdf}>
+            <Download className="w-4 h-4 mr-2" />
+            Download PDF
+          </Button>
+        </div>
+
+        <Card className="shadow-lg border-t-4 border-t-primary animate-in fade-in slide-in-from-bottom-4 duration-500 print:shadow-none print:border-0 print:bg-white">
           <form onSubmit={handleSubmit}>
-            <CardHeader className="border-b pb-6">
+            <CardHeader className="border-b pb-6 print:border-0">
               <CardTitle className="text-3xl font-bold">{title}</CardTitle>
               {description && (
                 <CardDescription className="text-base mt-2 text-foreground/80">{description}</CardDescription>
               )}
             </CardHeader>
 
-            <CardContent className="space-y-8 pt-6">
+            <CardContent className="space-y-8 pt-6 print:space-y-10">
               {form.fields
                 .slice()
                 .sort((a, b) => a.orderIndex - b.orderIndex)
@@ -193,7 +213,7 @@ export default function PublicForm() {
                   );
 
                   return (
-                    <div key={field.id} className="space-y-3">
+                    <div key={field.id} className="space-y-3 print:break-inside-avoid">
                       <Label className="text-base font-medium flex gap-1">
                         {label}
                         {field.isRequired && <span className="text-destructive">*</span>}
@@ -205,7 +225,7 @@ export default function PublicForm() {
                           placeholder={placeholder || ""}
                           value={formData[field.id] || ""}
                           onChange={(e) => handleInputChange(field.id, e.target.value)}
-                          className="bg-muted/30 focus:bg-background"
+                          className="bg-muted/30 focus:bg-background print:bg-transparent print:border-0 print:border-b print:border-black print:rounded-none print:px-0"
                         />
                       )}
 
@@ -215,7 +235,7 @@ export default function PublicForm() {
                           placeholder={placeholder || ""}
                           value={formData[field.id] || ""}
                           onChange={(e) => handleInputChange(field.id, e.target.value)}
-                          className="bg-muted/30 focus:bg-background min-h-[100px]"
+                          className="bg-muted/30 focus:bg-background min-h-[100px] print:bg-transparent print:border-0 print:border-b print:border-black print:rounded-none print:px-0 print:min-h-[120px]"
                         />
                       )}
 
@@ -230,7 +250,7 @@ export default function PublicForm() {
                           {originalOptions.map((orig, i) => (
                             <div
                               key={i}
-                              className="flex items-center space-x-3 bg-muted/20 p-3 rounded-lg border border-transparent hover:border-border transition-colors"
+                              className="flex items-center space-x-3 bg-muted/20 p-3 rounded-lg border border-transparent hover:border-border transition-colors print:bg-transparent print:p-0 print:border-0"
                             >
                               {/* value is the original text; label shows translated text */}
                               <RadioGroupItem value={orig} id={`${field.id}-${i}`} />
@@ -243,7 +263,7 @@ export default function PublicForm() {
                       )}
 
                       {field.fieldType === "multi_choice" && (
-                        <div className="space-y-2">
+                          <div className="space-y-2">
                           {originalOptions.map((orig, i) => {
                             const currentVals = (formData[field.id] as string[]) || [];
                             // checked state compares against original option text
@@ -251,7 +271,7 @@ export default function PublicForm() {
                             return (
                               <div
                                 key={i}
-                                className="flex items-center space-x-3 bg-muted/20 p-3 rounded-lg border border-transparent hover:border-border transition-colors"
+                                className="flex items-center space-x-3 bg-muted/20 p-3 rounded-lg border border-transparent hover:border-border transition-colors print:bg-transparent print:p-0 print:border-0"
                               >
                                 <Checkbox
                                   id={`${field.id}-${i}`}
@@ -280,7 +300,7 @@ export default function PublicForm() {
                           placeholder={placeholder || "name@example.com"}
                           value={formData[field.id] || ""}
                           onChange={(e) => handleInputChange(field.id, e.target.value)}
-                          className="bg-muted/30 focus:bg-background"
+                          className="bg-muted/30 focus:bg-background print:bg-transparent print:border-0 print:border-b print:border-black print:rounded-none print:px-0"
                         />
                       )}
 
@@ -291,7 +311,7 @@ export default function PublicForm() {
                           placeholder={placeholder || ""}
                           value={formData[field.id] || ""}
                           onChange={(e) => handleInputChange(field.id, e.target.value)}
-                          className="bg-muted/30 focus:bg-background"
+                          className="bg-muted/30 focus:bg-background print:bg-transparent print:border-0 print:border-b print:border-black print:rounded-none print:px-0"
                         />
                       )}
 
@@ -301,7 +321,7 @@ export default function PublicForm() {
                           required={field.isRequired}
                           value={formData[field.id] || ""}
                           onChange={(e) => handleInputChange(field.id, e.target.value)}
-                          className="bg-muted/30 focus:bg-background w-auto"
+                          className="bg-muted/30 focus:bg-background w-auto print:bg-transparent print:border-0 print:border-b print:border-black print:rounded-none print:px-0"
                         />
                       )}
 
@@ -312,12 +332,50 @@ export default function PublicForm() {
                           required={field.isRequired}
                         />
                       )}
+
+                      {field.fieldType === "single_choice" && (
+                        <div className="hidden print:block space-y-2 pt-2">
+                          {originalOptions.map((option, i) => (
+                            <div key={i} className="flex items-center gap-3">
+                              <span className="inline-block w-4 h-4 border border-black" />
+                              <span className="text-sm">{option}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {field.fieldType === "multi_choice" && (
+                        <div className="hidden print:block space-y-2 pt-2">
+                          {originalOptions.map((option, i) => (
+                            <div key={i} className="flex items-center gap-3">
+                              <span className="inline-block w-4 h-4 border border-black" />
+                              <span className="text-sm">{option}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {(field.fieldType === "short_text" || field.fieldType === "email" || field.fieldType === "phone" || field.fieldType === "date") && (
+                        <div className="hidden print:block border-b border-black/80 min-h-9" />
+                      )}
+
+                      {field.fieldType === "long_text" && (
+                        <div className="hidden print:block border border-black min-h-28" />
+                      )}
+
+                      {field.fieldType === "rating" && (
+                        <div className="hidden print:flex gap-2 pt-1">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <span key={star} className="inline-block w-5 h-5 border border-black rounded-full" />
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
             </CardContent>
 
-            <CardFooter className="bg-muted/10 p-6 border-t mt-6">
+            <CardFooter className="bg-muted/10 p-6 border-t mt-6 print:hidden">
               <Button type="submit" size="lg" className="w-full md:w-auto" disabled={submitForm.isPending}>
                 {submitForm.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                 {t.submitButton || "Submit"}

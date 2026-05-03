@@ -77,7 +77,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <div className="h-16 flex items-center px-6 border-b border-border">
           <Link href="/" className="flex items-center gap-2.5 text-sm tracking-tight text-foreground" style={{ fontFamily: "var(--app-font-display)", fontWeight: 700 }}>
             <LogoIcon size={26} />
-            Prompt to Form
+            B-Forms
           </Link>
         </div>
 
@@ -105,7 +105,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <header className="md:hidden h-14 border-b border-border bg-background flex items-center px-4 justify-between sticky top-0 z-10">
           <Link href="/" className="text-sm flex items-center gap-2 text-foreground" style={{ fontFamily: "var(--app-font-display)", fontWeight: 700 }}>
             <LogoIcon size={22} />
-            Prompt to Form
+            B-Forms
           </Link>
         </header>
 

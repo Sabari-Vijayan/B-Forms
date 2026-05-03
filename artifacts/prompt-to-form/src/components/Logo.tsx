@@ -12,7 +12,7 @@ export function LogoIcon({ size = 28, className }: LogoIconProps) {
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
-      aria-label="Prompt to Form"
+      aria-label="B-Forms"
     >
       <rect width="32" height="32" rx="5" fill="#212121" />
       {/* Faint label line + input bar — row 1 */}
