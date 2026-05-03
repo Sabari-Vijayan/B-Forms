@@ -56,11 +56,13 @@ export default function PublicForm() {
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [isSubmitted, setIsSubmitted] = useState(false);
 
+  const normalizeLang = (lang: string) => lang.toLowerCase().split("-")[0];
+
   useEffect(() => {
     if (form && !selectedLang) {
       // Always include original language in the available set
       const available = Array.from(new Set([form.originalLanguage, ...form.supportedLanguages]));
-      const browserLang = navigator.language.split("-")[0];
+      const browserLang = normalizeLang(navigator.language);
       if (available.includes(browserLang)) {
         // Prefer the user's own browser language
         setSelectedLang(browserLang);
@@ -98,7 +100,9 @@ export default function PublicForm() {
   const availableLanguages = Array.from(new Set([form.originalLanguage, ...form.supportedLanguages]));
 
   // Get translations for current language (fallback to original fields if not translated yet)
-  const currentTranslation = form.translations?.find((tr) => tr.language === selectedLang);
+  const currentTranslation =
+    form.translations?.find((tr) => normalizeLang(tr.language) === normalizeLang(selectedLang)) ||
+    form.translations?.find((tr) => tr.language === form.originalLanguage);
   const t = (currentTranslation?.translationsJson as Record<string, string>) || {};
 
   const title = t.title || form.title;
