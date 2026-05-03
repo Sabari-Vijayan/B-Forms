@@ -4,6 +4,7 @@ import { useGetMe } from "@workspace/api-client-react";
 import { logout } from "@/lib/auth";
 import { LogOut, LayoutDashboard, Plus } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { LogoIcon } from "@/components/Logo";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -75,9 +76,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       <aside className="w-60 border-r border-border bg-sidebar hidden md:flex flex-col shrink-0">
         <div className="h-16 flex items-center px-6 border-b border-border">
           <Link href="/" className="flex items-center gap-2.5 text-sm tracking-tight text-foreground" style={{ fontFamily: "var(--app-font-display)", fontWeight: 700 }}>
-            <div className="w-7 h-7 bg-foreground text-background flex items-center justify-center text-xs font-bold">
-              P
-            </div>
+            <LogoIcon size={26} />
             Prompt to Form
           </Link>
         </div>
@@ -104,9 +103,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         {/* Mobile Header */}
         <header className="md:hidden h-14 border-b border-border bg-background flex items-center px-4 justify-between sticky top-0 z-10">
           <Link href="/" className="text-sm flex items-center gap-2 text-foreground" style={{ fontFamily: "var(--app-font-display)", fontWeight: 700 }}>
-            <div className="w-6 h-6 bg-foreground text-background flex items-center justify-center text-xs font-bold">
-              P
-            </div>
+            <LogoIcon size={22} />
             Prompt to Form
           </Link>
         </header>

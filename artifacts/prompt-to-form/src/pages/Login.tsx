@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
+import { LogoIcon } from "@/components/Logo";
 
 function AuthBanner() {
   const gridH = Array.from({ length: 26 }, (_, i) => i * 8);
@@ -172,8 +173,8 @@ export default function Login() {
         <div className="w-full max-w-sm">
           {/* Logo + heading */}
           <div className="mb-8">
-            <div className="w-8 h-8 bg-foreground text-background flex items-center justify-center text-sm font-bold mb-5">
-              P
+            <div className="mb-5">
+              <LogoIcon size={36} />
             </div>
             <h1 className="text-foreground">
               {mode === "login" ? "Welcome back" : "Create an account"}
