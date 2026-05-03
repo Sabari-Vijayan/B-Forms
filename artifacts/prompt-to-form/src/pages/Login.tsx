@@ -174,7 +174,9 @@ export default function Login() {
           {/* Logo + heading */}
           <div className="mb-8">
             <div className="mb-5">
-              <LogoIcon size={36} />
+              <div className="text-[#4f86ff]">
+                <LogoIcon size={36} />
+              </div>
             </div>
             <h1 className="text-foreground">
               {mode === "login" ? "Welcome back" : "Create an account"}
