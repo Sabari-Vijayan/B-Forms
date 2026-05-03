@@ -55,6 +55,7 @@ export default function PublicForm() {
   const [selectedLang, setSelectedLang] = useState<string>("");
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSwitchingLanguage, setIsSwitchingLanguage] = useState(false);
 
   const normalizeLang = (lang: string) => lang.toLowerCase().split("-")[0];
 
@@ -151,6 +152,15 @@ export default function PublicForm() {
     setFormData((prev) => ({ ...prev, [fieldId]: value }));
   };
 
+  const handleLanguageChange = (lang: string) => {
+    if (lang === selectedLang) return;
+    setIsSwitchingLanguage(true);
+    window.setTimeout(() => {
+      setSelectedLang(lang);
+      window.setTimeout(() => setIsSwitchingLanguage(false), 180);
+    }, 120);
+  };
+
   if (isSubmitted) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/10 p-4">
@@ -177,7 +187,7 @@ export default function PublicForm() {
             <select
               className="bg-transparent border-none text-sm outline-none cursor-pointer"
               value={selectedLang}
-              onChange={(e) => setSelectedLang(e.target.value)}
+              onChange={(e) => handleLanguageChange(e.target.value)}
             >
               {availableLanguages.map((code) => (
                 <option key={code} value={code}>
@@ -196,7 +206,7 @@ export default function PublicForm() {
           </Button>
         </div>
 
-        <Card className="shadow-lg border-t-4 border-t-primary/80 animate-in fade-in slide-in-from-bottom-4 duration-500 print:shadow-none print:border-0 print:bg-white">
+        <Card className={`shadow-lg border-t-4 border-t-primary/80 print:shadow-none print:border-0 print:bg-white transition-all duration-200 ${isSwitchingLanguage ? "opacity-70 saturate-75" : "opacity-100"}`}>
           <form onSubmit={handleSubmit}>
             <CardHeader className="border-b pb-6 print:border-0">
               <CardTitle className="text-3xl font-bold">{title}</CardTitle>
@@ -205,7 +215,7 @@ export default function PublicForm() {
               )}
             </CardHeader>
 
-            <CardContent className="space-y-8 pt-6 print:space-y-10">
+            <CardContent className={`space-y-8 pt-6 print:space-y-10 transition-opacity duration-200 ${isSwitchingLanguage ? "opacity-50" : "opacity-100"}`}>
               {form.fields
                 .slice()
                 .sort((a, b) => a.orderIndex - b.orderIndex)
@@ -390,6 +400,15 @@ export default function PublicForm() {
               </Button>
             </CardFooter>
           </form>
+
+          {isSwitchingLanguage && (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-[inherit] bg-background/35 backdrop-blur-[1px]">
+              <div className="flex items-center gap-2 rounded-full border border-border/70 bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Switching language
+              </div>
+            </div>
+          )}
         </Card>
       </div>
     </div>
