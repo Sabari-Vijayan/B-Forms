@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams } from "wouter";
+import { useParams, useSearch } from "wouter";
 import { useGetPublicForm, useSubmitForm } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,13 +49,31 @@ function StarRating({ value, onChange, required }: { value: number; onChange: (v
 
 export default function PublicForm() {
   const { slug } = useParams();
-  const { data: form, isLoading, error } = useGetPublicForm(slug as string, { query: { enabled: !!slug } });
+  const { data: form, isLoading, error } = useGetPublicForm(slug as string, { 
+    query: { 
+      enabled: !!slug,
+      staleTime: 300_000 // 5 minutes cache for public forms
+    } 
+  });
   const submitForm = useSubmitForm();
 
   const [selectedLang, setSelectedLang] = useState<string>("");
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSwitchingLanguage, setIsSwitchingLanguage] = useState(false);
+
+  const search = useSearch();
+
+  useEffect(() => {
+    const params = new URLSearchParams(search);
+    if (params.get("print") === "1" && form && !isLoading) {
+      // Small delay to ensure all dynamic content (like translations) is rendered
+      const timer = setTimeout(() => {
+        window.print();
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [search, form, isLoading]);
 
   const normalizeLang = (lang: string) => lang.toLowerCase().split("-")[0];
 
@@ -112,19 +130,7 @@ export default function PublicForm() {
 
   const title = t.title || form.title;
   const description = t.description || form.description;
-  const printableUrl = `${window.location.origin}/f/${slug}?print=1`;
 
-  const handleDownloadPdf = () => {
-    const printWindow = window.open(printableUrl, "_blank", "noopener,noreferrer");
-    if (!printWindow) {
-      toast.error("Allow popups to open the printable version.");
-      return;
-    }
-    printWindow.addEventListener("load", () => {
-      printWindow.focus();
-      printWindow.print();
-    });
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -178,10 +184,10 @@ export default function PublicForm() {
   }
 
   return (
-    <div className="min-h-screen bg-muted/10 py-12 px-4">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen bg-muted/10 py-12 px-4 print:bg-white print:py-0 print:px-0" lang={selectedLang}>
+      <div className="max-w-2xl mx-auto print:max-w-none print:m-0 print:p-[0.75in]">
         {/* Language selector — always shows original + all published languages */}
-        <div className="flex justify-end mb-4">
+        <div className="flex justify-end mb-4 print:hidden">
           <div className="flex items-center gap-2 bg-background/95 border border-border/70 rounded-md px-3 py-1.5 shadow-sm">
             <Globe className="w-4 h-4 text-muted-foreground" />
             <select
@@ -199,23 +205,18 @@ export default function PublicForm() {
           </div>
         </div>
 
-        <div className="flex justify-end mb-4">
-          <Button variant="outline" onClick={handleDownloadPdf}>
-            <Download className="w-4 h-4 mr-2" />
-            Download PDF
-          </Button>
-        </div>
 
-        <Card className={`shadow-lg border-t-4 border-t-primary/80 print:shadow-none print:border-0 print:bg-white transition-all duration-200 ${isSwitchingLanguage ? "opacity-70 saturate-75" : "opacity-100"}`}>
+
+        <Card className={`shadow-lg border-t-4 border-t-primary/80 print:shadow-none print:border-0 print:bg-white print:p-0 transition-all duration-200 ${isSwitchingLanguage ? "opacity-70 saturate-75" : "opacity-100"}`}>
           <form onSubmit={handleSubmit}>
-            <CardHeader className="border-b pb-6 print:border-0">
-              <CardTitle className="text-3xl font-bold">{title}</CardTitle>
+            <CardHeader className="border-b pb-6 print:border-b-2 print:border-black print:pb-4 print:mb-8 print:pt-0 print:px-0">
+              <CardTitle className="text-3xl font-bold print:text-3xl">{title}</CardTitle>
               {description && (
-                <CardDescription className="text-base mt-2 text-foreground/80">{description}</CardDescription>
+                <CardDescription className="text-base mt-2 text-foreground/80 print:text-sm print:text-black print:mt-4 print:italic">{description}</CardDescription>
               )}
             </CardHeader>
 
-            <CardContent className={`space-y-8 pt-6 print:space-y-10 transition-opacity duration-200 ${isSwitchingLanguage ? "opacity-50" : "opacity-100"}`}>
+            <CardContent className={`space-y-8 pt-6 print:space-y-12 print:px-0 transition-opacity duration-200 ${isSwitchingLanguage ? "opacity-50" : "opacity-100"}`}>
               {form.fields
                 .slice()
                 .sort((a, b) => a.orderIndex - b.orderIndex)
@@ -231,162 +232,182 @@ export default function PublicForm() {
                   );
 
                   return (
-                    <div key={field.id} className="space-y-3 print:break-inside-avoid">
-                      <Label className="text-base font-medium flex gap-1">
+                    <div key={field.id} className="space-y-3 print:space-y-4 print:break-inside-avoid">
+                      <Label className="text-base font-medium flex gap-1 print:text-lg print:text-black">
                         {label}
-                        {field.isRequired && <span className="text-destructive">*</span>}
+                        {field.isRequired && <span className="text-destructive print:text-black">*</span>}
                       </Label>
 
                       {field.fieldType === "short_text" && (
-                        <Input
-                          required={field.isRequired}
-                          placeholder={placeholder || ""}
-                          value={formData[field.id] || ""}
-                          onChange={(e) => handleInputChange(field.id, e.target.value)}
-                          className="bg-muted/30 focus:bg-background print:bg-transparent print:border-0 print:border-b print:border-black print:rounded-none print:px-0"
-                        />
+                        <>
+                          <Input
+                            required={field.isRequired}
+                            placeholder={placeholder || ""}
+                            value={formData[field.id] || ""}
+                            onChange={(e) => handleInputChange(field.id, e.target.value)}
+                            className="bg-muted/30 focus:bg-background print:hidden"
+                          />
+                          <div className="hidden print:block border-b border-black/30 min-h-[2.5rem] w-full" />
+                        </>
                       )}
 
                       {field.fieldType === "long_text" && (
-                        <Textarea
-                          required={field.isRequired}
-                          placeholder={placeholder || ""}
-                          value={formData[field.id] || ""}
-                          onChange={(e) => handleInputChange(field.id, e.target.value)}
-                          className="bg-muted/30 focus:bg-background min-h-[100px] print:bg-transparent print:border-0 print:border-b print:border-black print:rounded-none print:px-0 print:min-h-[120px]"
-                        />
+                        <>
+                          <Textarea
+                            required={field.isRequired}
+                            placeholder={placeholder || ""}
+                            value={formData[field.id] || ""}
+                            onChange={(e) => handleInputChange(field.id, e.target.value)}
+                            className="bg-muted/30 focus:bg-background min-h-[100px] print:hidden"
+                          />
+                          <div className="hidden print:block border border-black/20 rounded-sm min-h-[4in] w-full p-0 relative overflow-hidden">
+                             {[...Array(12)].map((_, i) => (
+                               <div key={i} className="border-b border-black/10 h-8 last:border-0" />
+                             ))}
+                          </div>
+                        </>
                       )}
 
                       {field.fieldType === "single_choice" && (
-                        <RadioGroup
-                          required={field.isRequired}
-                          // stored value is always the original option text
-                          value={formData[field.id] || ""}
-                          onValueChange={(val) => handleInputChange(field.id, val)}
-                          className="space-y-2"
-                        >
-                          {originalOptions.map((orig, i) => (
-                            <div
-                              key={i}
-                              className="flex items-center space-x-3 bg-muted/20 p-3 rounded-lg border border-transparent hover:border-border transition-colors print:bg-transparent print:p-0 print:border-0"
-                            >
-                              {/* value is the original text; label shows translated text */}
-                              <RadioGroupItem value={orig} id={`${field.id}-${i}`} />
-                              <Label htmlFor={`${field.id}-${i}`} className="font-normal cursor-pointer flex-1">
-                                {displayOptions[i]}
-                              </Label>
-                            </div>
-                          ))}
-                        </RadioGroup>
-                      )}
-
-                      {field.fieldType === "multi_choice" && (
-                          <div className="space-y-2">
-                          {originalOptions.map((orig, i) => {
-                            const currentVals = (formData[field.id] as string[]) || [];
-                            // checked state compares against original option text
-                            const isChecked = currentVals.includes(orig);
-                            return (
+                        <>
+                          <RadioGroup
+                            required={field.isRequired}
+                            value={formData[field.id] || ""}
+                            onValueChange={(val) => handleInputChange(field.id, val)}
+                            className="space-y-2 print:hidden"
+                          >
+                            {originalOptions.map((orig, i) => (
                               <div
                                 key={i}
-                                className="flex items-center space-x-3 bg-muted/20 p-3 rounded-lg border border-transparent hover:border-border transition-colors print:bg-transparent print:p-0 print:border-0"
+                                className="flex items-center space-x-3 bg-muted/20 p-3 rounded-lg border border-transparent hover:border-border transition-colors"
                               >
-                                <Checkbox
-                                  id={`${field.id}-${i}`}
-                                  checked={isChecked}
-                                  onCheckedChange={(checked) => {
-                                    if (checked) {
-                                      handleInputChange(field.id, [...currentVals, orig]);
-                                    } else {
-                                      handleInputChange(field.id, currentVals.filter((v) => v !== orig));
-                                    }
-                                  }}
-                                />
+                                <RadioGroupItem value={orig} id={`${field.id}-${i}`} />
                                 <Label htmlFor={`${field.id}-${i}`} className="font-normal cursor-pointer flex-1">
                                   {displayOptions[i]}
                                 </Label>
                               </div>
-                            );
-                          })}
-                        </div>
-                      )}
-
-                      {field.fieldType === "email" && (
-                        <Input
-                          type="email"
-                          required={field.isRequired}
-                          placeholder={placeholder || "name@example.com"}
-                          value={formData[field.id] || ""}
-                          onChange={(e) => handleInputChange(field.id, e.target.value)}
-                          className="bg-muted/30 focus:bg-background print:bg-transparent print:border-0 print:border-b print:border-black print:rounded-none print:px-0"
-                        />
-                      )}
-
-                      {field.fieldType === "phone" && (
-                        <Input
-                          type="tel"
-                          required={field.isRequired}
-                          placeholder={placeholder || ""}
-                          value={formData[field.id] || ""}
-                          onChange={(e) => handleInputChange(field.id, e.target.value)}
-                          className="bg-muted/30 focus:bg-background print:bg-transparent print:border-0 print:border-b print:border-black print:rounded-none print:px-0"
-                        />
-                      )}
-
-                      {field.fieldType === "date" && (
-                        <Input
-                          type="date"
-                          required={field.isRequired}
-                          value={formData[field.id] || ""}
-                          onChange={(e) => handleInputChange(field.id, e.target.value)}
-                          className="bg-muted/30 focus:bg-background w-auto print:bg-transparent print:border-0 print:border-b print:border-black print:rounded-none print:px-0"
-                        />
-                      )}
-
-                      {field.fieldType === "rating" && (
-                        <StarRating
-                          value={Number(formData[field.id]) || 0}
-                          onChange={(val) => handleInputChange(field.id, val)}
-                          required={field.isRequired}
-                        />
-                      )}
-
-                      {field.fieldType === "single_choice" && (
-                        <div className="hidden print:block space-y-2 pt-2">
-                          {originalOptions.map((option, i) => (
-                            <div key={i} className="flex items-center gap-3">
-                              <span className="inline-block w-4 h-4 border border-black" />
-                              <span className="text-sm">{option}</span>
-                            </div>
-                          ))}
-                        </div>
+                            ))}
+                          </RadioGroup>
+                          <div className="hidden print:grid print:grid-cols-1 print:gap-y-4 print:pt-1">
+                            {displayOptions.map((option, i) => (
+                              <div key={i} className="flex items-center gap-4">
+                                <span className="inline-block w-5 h-5 rounded-full border-2 border-black/40" />
+                                <span className="text-base text-black">{option}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </>
                       )}
 
                       {field.fieldType === "multi_choice" && (
-                        <div className="hidden print:block space-y-2 pt-2">
-                          {originalOptions.map((option, i) => (
-                            <div key={i} className="flex items-center gap-3">
-                              <span className="inline-block w-4 h-4 border border-black" />
-                              <span className="text-sm">{option}</span>
-                            </div>
-                          ))}
-                        </div>
+                        <>
+                          <div className="space-y-2 print:hidden">
+                            {originalOptions.map((orig, i) => {
+                              const currentVals = (formData[field.id] as string[]) || [];
+                              const isChecked = currentVals.includes(orig);
+                              return (
+                                <div
+                                  key={i}
+                                  className="flex items-center space-x-3 bg-muted/20 p-3 rounded-lg border border-transparent hover:border-border transition-colors"
+                                >
+                                  <Checkbox
+                                    id={`${field.id}-${i}`}
+                                    checked={isChecked}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        handleInputChange(field.id, [...currentVals, orig]);
+                                      } else {
+                                        handleInputChange(field.id, currentVals.filter((v) => v !== orig));
+                                      }
+                                    }}
+                                  />
+                                  <Label htmlFor={`${field.id}-${i}`} className="font-normal cursor-pointer flex-1">
+                                    {displayOptions[i]}
+                                  </Label>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div className="hidden print:grid print:grid-cols-1 print:gap-y-4 print:pt-1">
+                            {displayOptions.map((option, i) => (
+                              <div key={i} className="flex items-center gap-4">
+                                <span className="inline-block w-5 h-5 border-2 border-black/40 rounded-sm" />
+                                <span className="text-base text-black">{option}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </>
                       )}
 
-                      {(field.fieldType === "short_text" || field.fieldType === "email" || field.fieldType === "phone" || field.fieldType === "date") && (
-                        <div className="hidden print:block border-b border-black/80 min-h-9" />
+                      {field.fieldType === "email" && (
+                        <>
+                          <Input
+                            type="email"
+                            required={field.isRequired}
+                            placeholder={placeholder || "name@example.com"}
+                            value={formData[field.id] || ""}
+                            onChange={(e) => handleInputChange(field.id, e.target.value)}
+                            className="bg-muted/30 focus:bg-background print:hidden"
+                          />
+                          <div className="hidden print:block border-b border-black/30 min-h-[2.5rem] w-full" />
+                        </>
                       )}
 
-                      {field.fieldType === "long_text" && (
-                        <div className="hidden print:block border border-black min-h-28" />
+                      {field.fieldType === "phone" && (
+                        <>
+                          <Input
+                            type="tel"
+                            required={field.isRequired}
+                            placeholder={placeholder || ""}
+                            value={formData[field.id] || ""}
+                            onChange={(e) => handleInputChange(field.id, e.target.value)}
+                            className="bg-muted/30 focus:bg-background print:hidden"
+                          />
+                          <div className="hidden print:block border-b border-black/30 min-h-[2.5rem] w-full" />
+                        </>
+                      )}
+
+                      {field.fieldType === "date" && (
+                        <>
+                          <Input
+                            type="date"
+                            required={field.isRequired}
+                            value={formData[field.id] || ""}
+                            onChange={(e) => handleInputChange(field.id, e.target.value)}
+                            className="bg-muted/30 focus:bg-background w-auto print:hidden"
+                          />
+                          <div className="hidden print:flex items-center gap-2">
+                             <div className="border-b border-black/30 min-h-[2.5rem] w-12 text-center text-[10px] text-black/30 pt-6">DD</div>
+                             <div className="text-black/30 pt-4">/</div>
+                             <div className="border-b border-black/30 min-h-[2.5rem] w-12 text-center text-[10px] text-black/30 pt-6">MM</div>
+                             <div className="text-black/30 pt-4">/</div>
+                             <div className="border-b border-black/30 min-h-[2.5rem] w-24 text-center text-[10px] text-black/30 pt-6">YYYY</div>
+                          </div>
+                        </>
                       )}
 
                       {field.fieldType === "rating" && (
-                        <div className="hidden print:flex gap-2 pt-1">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <span key={star} className="inline-block w-5 h-5 border border-black rounded-full" />
-                          ))}
-                        </div>
+                        <>
+                          <div className="print:hidden">
+                            <StarRating
+                              value={Number(formData[field.id]) || 0}
+                              onChange={(val) => handleInputChange(field.id, val)}
+                              required={field.isRequired}
+                            />
+                          </div>
+                          <div className="hidden print:flex items-center gap-8 pt-4">
+                            {[1, 2, 3, 4, 5].map((num) => (
+                              <div key={num} className="flex flex-col items-center gap-2">
+                                <span className="inline-block w-12 h-12 border-2 border-black/40 rounded-full text-xl font-bold flex items-center justify-center">
+                                  {num}
+                                </span>
+                                <span className="text-[10px] font-semibold text-black/60 uppercase tracking-wider">
+                                  {num === 1 ? "Poor" : num === 5 ? "Excellent" : ""}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </>
                       )}
                     </div>
                   );
@@ -399,6 +420,10 @@ export default function PublicForm() {
                 {t.submitButton || "Submit"}
               </Button>
             </CardFooter>
+
+            <div className="hidden print:block border-t border-black/10 pt-8 mt-12 text-[10px] text-black/40 text-center">
+              Form Reference: {slug} — Generated by Prompt-to-Form
+            </div>
           </form>
 
           {isSwitchingLanguage && (

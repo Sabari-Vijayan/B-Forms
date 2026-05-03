@@ -1,5 +1,7 @@
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { persistQueryClient } from "@tanstack/react-query-persist-client";
+import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
@@ -12,7 +14,27 @@ import PublicForm from "@/pages/PublicForm";
 import AuthCallback from "@/pages/AuthCallback";
 import Templates from "@/pages/Templates";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000, // 30 seconds global default
+      gcTime: 1000 * 60 * 60 * 24, // 24 hours
+    },
+  },
+});
+
+// Create a persister to sync with localStorage
+const localStoragePersister = createSyncStoragePersister({
+  storage: window.localStorage,
+  key: "ptf_query_cache",
+});
+
+// Apply persistence
+persistQueryClient({
+  queryClient,
+  persister: localStoragePersister,
+  maxAge: 1000 * 60 * 60 * 24, // 24 hours
+});
 
 function Router() {
   return (

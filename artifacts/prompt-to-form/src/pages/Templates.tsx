@@ -29,7 +29,7 @@ export default function Templates() {
 
   const { data: templates, isLoading } = useListTemplates(
     category ? { category } : {},
-    { query: { staleTime: 30_000 } }
+    { query: { staleTime: 300_000 } } // 5 minutes cache for templates
   );
 
   const useTemplate = useUseTemplate();

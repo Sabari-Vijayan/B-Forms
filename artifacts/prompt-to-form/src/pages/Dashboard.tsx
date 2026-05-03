@@ -25,8 +25,12 @@ const LANG_COLORS = ["#818cf8", "#34d399", "#60a5fa", "#f472b6", "#fb923c"];
 
 export default function Dashboard() {
   const queryClient = useQueryClient();
-  const { data: summary, isLoading: isSummaryLoading } = useGetDashboardSummary();
-  const { data: forms, isLoading: isFormsLoading } = useListForms();
+  const { data: summary, isLoading: isSummaryLoading } = useGetDashboardSummary({
+    query: { staleTime: 60_000 }
+  });
+  const { data: forms, isLoading: isFormsLoading } = useListForms({
+    query: { staleTime: 60_000 }
+  });
   const deleteForm = useDeleteForm();
   const duplicateForm = useDuplicateForm();
 

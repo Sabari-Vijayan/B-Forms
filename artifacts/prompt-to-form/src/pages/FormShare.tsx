@@ -99,12 +99,7 @@ export default function FormShare() {
     const printWindow = window.open(printableUrl, "_blank", "noopener,noreferrer");
     if (!printWindow) {
       toast.error("Allow popups to open the printable version.");
-      return;
     }
-    printWindow.addEventListener("load", () => {
-      printWindow.focus();
-      printWindow.print();
-    });
   };
 
   return (

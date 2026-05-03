@@ -80,5 +80,9 @@
     "vite": "catalog:",
     "wouter": "^3.3.5",
     "zod": "catalog:"
+  },
+  "dependencies": {
+    "@tanstack/query-sync-storage-persister": "^5.100.8",
+    "@tanstack/react-query-persist-client": "^5.100.8"
   }
 }
