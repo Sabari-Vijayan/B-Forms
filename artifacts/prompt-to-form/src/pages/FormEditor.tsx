@@ -1,4 +1,7 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { DndContext, type DragEndEvent, PointerSensor, useSensor, useSensors, closestCenter } from "@dnd-kit/core";
+import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useLocation, useParams } from "wouter";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { 
@@ -54,6 +57,27 @@ const FIELD_ICONS: Record<string, React.ElementType> = {
   phone: Phone,
 };
 
+function SortableFieldCard({ id, children }: {
+  id: string;
+  children: (dragHandleProps: { listeners: ReturnType<typeof useSortable>["listeners"]; attributes: ReturnType<typeof useSortable>["attributes"] }) => React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.4 : 1,
+        position: "relative",
+        zIndex: isDragging ? 10 : undefined,
+      }}
+    >
+      {children({ listeners, attributes })}
+    </div>
+  );
+}
+
 export default function FormEditor() {
   const params = useParams();
   const id = params.id as string;
@@ -106,6 +130,44 @@ export default function FormEditor() {
   const [description, setDescription] = useState("");
   const [supportedLanguages, setSupportedLanguages] = useState<string[]>([]);
   const [preferredLanguage, setPreferredLanguage] = useState<string>("");
+
+  // ── Drag-to-reorder ────────────────────────────────────────────────────────
+  const [orderedIds, setOrderedIds] = useState<string[]>([]);
+
+  // Sync orderedIds when server data arrives (only initialise, preserve local reorders)
+  useEffect(() => {
+    if (!fields) return;
+    const serverIds = [...fields].sort((a, b) => a.orderIndex - b.orderIndex).map(f => f.id);
+    setOrderedIds(prev => {
+      // If prev has exactly the same set (just maybe different order), keep prev order
+      if (prev.length === serverIds.length && serverIds.every(id => prev.includes(id))) return prev;
+      return serverIds;
+    });
+  }, [fields]);
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const newIds = arrayMove(
+      orderedIdsRef.current,
+      orderedIdsRef.current.indexOf(active.id as string),
+      orderedIdsRef.current.indexOf(over.id as string),
+    );
+    setOrderedIds(newIds);
+    try {
+      await reorderFields.mutateAsync({ id, data: { fieldIds: newIds } });
+      queryClient.invalidateQueries({ queryKey: ["/api/forms", id, "fields"] });
+    } catch {
+      toast.error("Failed to reorder fields");
+    }
+  }, [id, reorderFields, queryClient]);
+
+  // ref so handleDragEnd always reads latest ids without stale closure
+  const orderedIdsRef = useRef(orderedIds);
+  orderedIdsRef.current = orderedIds;
+  // (persistReorder inlined into handleDragEnd above)
 
   // ── Field draft state ──────────────────────────────────────────────────────
   type FieldDraft = { label: string; placeholder: string | null; isRequired: boolean; optionsJson: string[] | null };
@@ -274,17 +336,27 @@ export default function FormEditor() {
           </TabsList>
 
           <TabsContent value="fields" className="mt-6 space-y-4">
-            {fields?.map((field) => {
-              const Icon = FIELD_ICONS[field.fieldType] || Type;
-              const draft = fieldDrafts[field.id];
-              const dirty = isDirty(field);
-              const isSaving = savingFieldId === field.id;
-              const opts = draft?.optionsJson ?? field.optionsJson ?? [];
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={orderedIds} strategy={verticalListSortingStrategy}>
+                {orderedIds.map(fieldId => {
+                  const field = fields?.find(f => f.id === fieldId);
+                  if (!field) return null;
+                  const Icon = FIELD_ICONS[field.fieldType] || Type;
+                  const draft = fieldDrafts[field.id];
+                  const dirty = isDirty(field);
+                  const isSaving = savingFieldId === field.id;
+                  const opts = draft?.optionsJson ?? field.optionsJson ?? [];
 
-              return (
-                <Card key={field.id} className={`border-border shadow-sm group transition-colors ${dirty ? "border-foreground/40" : ""}`}>
+                  return (
+                  <SortableFieldCard key={field.id} id={field.id}>
+                    {({ listeners, attributes }) => (
+                <Card className={`border-border shadow-sm group transition-colors ${dirty ? "border-foreground/40" : ""}`}>
                   <CardContent className="p-4 sm:p-6 flex gap-4">
-                    <div className="mt-1 cursor-grab text-muted-foreground hover:text-foreground">
+                    <div
+                      className="mt-1 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none"
+                      {...listeners}
+                      {...attributes}
+                    >
                       <GripVertical className="w-5 h-5" />
                     </div>
                     <div className="flex-1 space-y-4">
@@ -389,8 +461,12 @@ export default function FormEditor() {
                     </div>
                   </CardContent>
                 </Card>
-              );
-            })}
+                    )}
+                  </SortableFieldCard>
+                  );
+                })}
+              </SortableContext>
+            </DndContext>
 
             {/* Add field row */}
             <div className="border border-dashed border-border p-5">
