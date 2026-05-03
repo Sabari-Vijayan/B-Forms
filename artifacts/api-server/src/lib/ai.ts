@@ -62,34 +62,49 @@ export async function generateFormFromPrompt(prompt: string): Promise<AIGenerate
 }
 
 export async function translateFields(
+  formTitle: string,
+  formDescription: string | null | undefined,
   fields: Array<{ id: string; label: string; placeholder?: string | null; options?: string[] | null }>,
   targetLanguage: string,
   sourceLanguage: string
-): Promise<Record<string, { label: string; placeholder?: string; options?: string[] }>> {
+): Promise<Record<string, string>> {
   const model = genAI.getGenerativeModel({
     model: "gemini-2.5-flash-lite",
     generationConfig: { responseMimeType: "application/json" },
   });
 
-  const fieldData = fields.map((f) => ({
-    id: f.id,
-    label: f.label,
-    placeholder: f.placeholder,
-    options: f.options,
-  }));
+  // Build a flat key→value map of every string that needs translation.
+  // The frontend reads exactly these keys from translationsJson.
+  const input: Record<string, string> = {
+    title: formTitle,
+    submitButton: "Submit",
+    thankYouTitle: "Thank you!",
+    thankYouMessage: "Your response has been recorded.",
+  };
+  if (formDescription) {
+    input.description = formDescription;
+  }
+  for (const f of fields) {
+    input[`field_${f.id}_label`] = f.label;
+    if (f.placeholder) input[`field_${f.id}_placeholder`] = f.placeholder;
+    if (f.options) {
+      f.options.forEach((opt, i) => {
+        input[`field_${f.id}_option_${i}`] = opt;
+      });
+    }
+  }
 
-  const prompt = `Translate the following form field data from "${sourceLanguage}" to "${targetLanguage}".
-Return ONLY a JSON object where each key is the field id and the value has the translated label, placeholder (if present), and options array (if present).
-Do not translate the keys. Preserve tone and formality. Return only JSON.
+  const prompt = `Translate all values in the following JSON object from "${sourceLanguage}" to "${targetLanguage}".
+Keep every key exactly as-is. Only translate the string values. Preserve tone and formality.
+Return ONLY valid JSON with the same keys.
 
-Input:
-${JSON.stringify(fieldData, null, 2)}`;
+${JSON.stringify(input, null, 2)}`;
 
   const result = await model.generateContent(prompt);
   const text = result.response.text();
 
   try {
-    return JSON.parse(text);
+    return JSON.parse(text) as Record<string, string>;
   } catch {
     throw new Error(`Translation to ${targetLanguage} returned invalid JSON`);
   }

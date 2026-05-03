@@ -249,6 +249,8 @@ router.post("/forms/:id/publish", requireAuth, async (req: AuthenticatedRequest,
     (languages || []).map(async (lang: string) => {
       if (lang === form.original_language) return;
       const translations = await translateFields(
+        form.title as string,
+        form.description as string | null,
         formFields.map((f) => ({
           id: f.id as string,
           label: f.label as string,

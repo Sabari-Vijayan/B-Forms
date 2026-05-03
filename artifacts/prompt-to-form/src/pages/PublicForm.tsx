@@ -28,7 +28,11 @@ export default function PublicForm() {
       const available = Array.from(new Set([form.originalLanguage, ...form.supportedLanguages]));
       const browserLang = navigator.language.split("-")[0];
       if (available.includes(browserLang)) {
+        // Prefer the user's own browser language
         setSelectedLang(browserLang);
+      } else if (available.includes("en")) {
+        // Fall back to English before using the form's original language
+        setSelectedLang("en");
       } else {
         setSelectedLang(form.originalLanguage);
       }
