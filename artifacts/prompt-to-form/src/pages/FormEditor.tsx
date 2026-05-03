@@ -322,11 +322,11 @@ export default function FormEditor() {
   return (
     <DashboardLayout>
       <div className="max-w-5xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-foreground">{form.title}</h1>
-            <div className="flex items-center gap-2 mt-1">
-              <Badge variant={form.status === 'published' ? 'default' : 'secondary'}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-foreground truncate">{form.title}</h1>
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <Badge variant={form.status === 'published' ? 'default' : 'secondary'} className="shrink-0">
                 {form.status}
               </Badge>
               <span className="text-sm text-muted-foreground">
@@ -334,28 +334,33 @@ export default function FormEditor() {
               </span>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 shrink-0">
             <Button variant="outline" onClick={() => setLocation(`/forms/${id}/share`)} disabled={form.status !== 'published'}>
-              <Share2 className="w-4 h-4 mr-2" /> Share
+              <Share2 className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Share</span>
             </Button>
             {form.status !== 'published' && (
               <Button onClick={() => setLocation(`/forms/${id}/share`)}>
-                Publish Form
+                <span className="hidden sm:inline">Publish Form</span>
+                <span className="sm:hidden">Publish</span>
               </Button>
             )}
           </div>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 max-w-[400px]">
-            <TabsTrigger value="fields">
-              <List className="w-4 h-4 mr-2" /> Fields
+          <TabsList className="grid w-full grid-cols-3 sm:max-w-[400px]">
+            <TabsTrigger value="fields" className="gap-1.5 text-xs sm:text-sm">
+              <List className="w-4 h-4 shrink-0" />
+              <span>Fields</span>
             </TabsTrigger>
-            <TabsTrigger value="settings">
-              <Settings className="w-4 h-4 mr-2" /> Settings
+            <TabsTrigger value="settings" className="gap-1.5 text-xs sm:text-sm">
+              <Settings className="w-4 h-4 shrink-0" />
+              <span>Settings</span>
             </TabsTrigger>
-            <TabsTrigger value="responses">
-              <FileSpreadsheet className="w-4 h-4 mr-2" /> Responses
+            <TabsTrigger value="responses" className="gap-1.5 text-xs sm:text-sm">
+              <FileSpreadsheet className="w-4 h-4 shrink-0" />
+              <span>Responses</span>
             </TabsTrigger>
           </TabsList>
 
