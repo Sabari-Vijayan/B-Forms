@@ -18,7 +18,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   });
 
   useEffect(() => {
-    if (!isLoading && (error || !user)) {
+    if (!isLoading && error && !user) {
       const intended = location !== "/login" ? location : "/";
       setLocation(`/login?redirect=${encodeURIComponent(intended)}`);
     }
@@ -30,12 +30,16 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     setLocation("/login");
   };
 
-  if (isLoading || !user) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
       </div>
     );
+  }
+
+  if (!user) {
+    return null;
   }
 
   const navLink = (href: string, label: string, Icon: React.ElementType) => {
