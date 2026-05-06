@@ -1,0 +1,16 @@
+    SaveTemplateBody:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        featureImageUrl:
+          type: string
+          nullable: true
+        category:
+          type: string
+        isPublic:
+          type: boolean
+      required: [title, isPublic]

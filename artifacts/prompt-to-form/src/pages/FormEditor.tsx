@@ -1,9 +1,21 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import { DndContext, type DragEndEvent, PointerSensor, useSensor, useSensors, closestCenter } from "@dnd-kit/core";
-import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { useLocation, useParams } from "wouter";
+import { useState, useEffect } from "react";
+import { useParams, useLocation } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+import { Loader2, Plus, List, Settings, FileSpreadsheet, BarChart2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+
+import { EditorHeader } from "@/components/editor/EditorHeader";
+import { FieldList } from "@/components/editor/FieldList";
+import { FormSettings } from "@/components/editor/FormSettings";
+import { AnalyticsDashboard } from "@/components/editor/AnalyticsDashboard";
+import { ResponsesTab } from "@/components/editor/ResponsesTab";
+import { ResponseDrawer } from "@/components/editor/ResponseDrawer";
+
 import { 
   useGetForm, 
   useListFormFields, 
@@ -14,1261 +26,307 @@ import {
   useDeleteFormField,
   useReorderFields,
   useDeleteForm,
-  useGetFormTemplate,
-  useSaveFormTemplate,
-  useRemoveFormTemplate,
+  usePublishForm,
+  Form
 } from "@workspace/api-client-react";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Settings, List, FileSpreadsheet, Share2, GripVertical, Trash2, Plus, Type, AlignLeft, CheckSquare, ListChecks, Star, Calendar, Mail, Phone, Download, X, ChevronRight, LayoutTemplate } from "lucide-react";
-import type { Submission } from "@workspace/api-client-react/src/generated/api.schemas";
-import { SUPPORTED_LANGUAGES } from "@/lib/constants";
-import { format, subDays, startOfDay } from "date-fns";
-import { toast } from "sonner";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
-import { useQueryClient } from "@tanstack/react-query";
-import type { FormFieldFieldType } from "@workspace/api-client-react/src/generated/api.schemas";
 
-// Minimal Drag and Drop Simulation (would use dnd-kit in a real app, keeping it simpler here for code size)
-// The prompt asked for dnd-kit, so I will build a simplified version.
-
-// Chart color palettes
-const WEEKLY_COLORS = ["#e0e7ff", "#c7d2fe", "#a5b4fc", "#818cf8", "#6366f1", "#4f46e5", "#3730a3"];
-const FIELD_OPTION_COLORS = ["#818cf8", "#34d399", "#60a5fa", "#f472b6", "#fb923c", "#a78bfa", "#38bdf8"];
-const LANG_COLORS = ["#818cf8", "#34d399", "#60a5fa", "#f472b6", "#fb923c"];
-
-const FIELD_ICONS: Record<string, React.ElementType> = {
-  short_text: Type,
-  long_text: AlignLeft,
-  single_choice: CheckSquare,
-  multi_choice: ListChecks,
-  rating: Star,
-  date: Calendar,
-  email: Mail,
-  phone: Phone,
-};
-
-function SortableFieldCard({ id, children }: {
-  id: string;
-  children: (dragHandleProps: { listeners: ReturnType<typeof useSortable>["listeners"]; attributes: ReturnType<typeof useSortable>["attributes"] }) => React.ReactNode;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
-  return (
-    <div
-      ref={setNodeRef}
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.4 : 1,
-        position: "relative",
-        zIndex: isDragging ? 10 : undefined,
-      }}
-    >
-      {children({ listeners, attributes })}
-    </div>
-  );
-}
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu";
 
 export default function FormEditor() {
-  const params = useParams();
-  const id = params.id as string;
-  const [, setLocation] = useLocation();
+  const { id } = useParams();
+  const [location, setLocation] = useLocation();
   const queryClient = useQueryClient();
 
-  // Declare activeTab early so it can be used in query options
-  const [activeTab, setActiveTab] = useState("fields");
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("tab") || "responses";
+  });
+  const [selectedSubmission, setSelectedSubmission] = useState<any>(null);
+  const { toast } = useToast();
 
-  const { data: form, isLoading: isFormLoading } = useGetForm(id, { query: { enabled: !!id } });
-  const { data: fields, isLoading: isFieldsLoading } = useListFormFields(id, { query: { enabled: !!id } });
-  const { data: submissions, isLoading: isSubmissionsLoading, dataUpdatedAt } = useListSubmissions(id, {
-    query: { enabled: !!id, refetchInterval: activeTab === "responses" ? 20000 : false },
+  // Queries
+  const { data: form, isLoading: isFormLoading } = useGetForm(id!, { query: { enabled: !!id, queryKey: [`/api/forms/${id}`] } });
+  const { data: fields, isLoading: isFieldsLoading } = useListFormFields(id!, { query: { enabled: !!id, queryKey: [`/api/forms/${id}/fields`] } });
+  const { data: submissions, isLoading: isSubmissionsLoading, dataUpdatedAt } = useListSubmissions(id!, {
+    query: { 
+      enabled: !!id, 
+      refetchInterval: activeTab === "responses" ? 20000 : false,
+      queryKey: [`/api/forms/${id}/submissions`]
+    },
   });
 
+  // Mutations
   const updateForm = useUpdateForm();
-  const deleteFormMutation = useDeleteForm();
   const createField = useCreateFormField();
   const updateField = useUpdateFormField();
   const deleteField = useDeleteFormField();
   const reorderFields = useReorderFields();
-  const saveTemplate = useSaveFormTemplate();
-  const removeTemplate = useRemoveFormTemplate();
+  const deleteFormMutation = useDeleteForm();
+  const publishForm = usePublishForm();
 
-  const { data: existingTemplate, refetch: refetchTemplate } = useGetFormTemplate(id, {
-    query: { enabled: !!id, retry: false },
-  });
-
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-
-  // Template state
-  const [tmplTitle, setTmplTitle] = useState("");
-  const [tmplDescription, setTmplDescription] = useState("");
-  const [tmplCategory, setTmplCategory] = useState("general");
-  const [tmplIsPublic, setTmplIsPublic] = useState(true);
-
-  // Sync template fields when existing template loads
-  useEffect(() => {
-    if (existingTemplate) {
-      setTmplTitle(existingTemplate.title);
-      setTmplDescription(existingTemplate.description || "");
-      setTmplCategory(existingTemplate.category);
-      setTmplIsPublic(existingTemplate.isPublic);
-    }
-  }, [existingTemplate]);
-
-  // ── New field form state ───────────────────────────────────────────────────
-  const [isAddingField, setIsAddingField] = useState(false);
-  const [newFieldType, setNewFieldType] = useState<FormFieldFieldType>("short_text");
-  const [newFieldLabel, setNewFieldLabel] = useState("");
-  const [newFieldPlaceholder, setNewFieldPlaceholder] = useState("");
-  const [newFieldRequired, setNewFieldRequired] = useState(false);
-  const [newFieldOptions, setNewFieldOptions] = useState<string[]>(["Option 1", "Option 2"]);
-
-  const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
-
-  // Live polling: track count when responses tab first opens to show "N new" badge
-  const baselineCountRef = useRef<number | null>(null);
-  const [newResponseCount, setNewResponseCount] = useState(0);
-  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
-
-  useEffect(() => {
-    if (activeTab === "responses" && baselineCountRef.current === null) {
-      baselineCountRef.current = submissions?.length ?? 0;
-    }
-  }, [activeTab, submissions]);
-
-  useEffect(() => {
-    if (submissions !== undefined) {
-      if (baselineCountRef.current !== null) {
-        const diff = submissions.length - baselineCountRef.current;
-        setNewResponseCount(diff > 0 ? diff : 0);
-      }
-      if (dataUpdatedAt) setLastUpdatedAt(new Date(dataUpdatedAt));
-    }
-  }, [submissions?.length, dataUpdatedAt]);
-
-  // Settings State
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [supportedLanguages, setSupportedLanguages] = useState<string[]>([]);
-  const [preferredLanguage, setPreferredLanguage] = useState<string>("");
-
-  // ── Drag-to-reorder ────────────────────────────────────────────────────────
+  // State Management
   const [orderedIds, setOrderedIds] = useState<string[]>([]);
-
-  // Sync orderedIds when server data arrives (only initialise, preserve local reorders)
-  useEffect(() => {
-    if (!fields) return;
-    const serverIds = [...fields].sort((a, b) => a.orderIndex - b.orderIndex).map(f => f.id);
-    setOrderedIds(prev => {
-      // If prev has exactly the same set (just maybe different order), keep prev order
-      if (prev.length === serverIds.length && serverIds.every(id => prev.includes(id))) return prev;
-      return serverIds;
-    });
-  }, [fields]);
-
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-
-  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const newIds = arrayMove(
-      orderedIdsRef.current,
-      orderedIdsRef.current.indexOf(active.id as string),
-      orderedIdsRef.current.indexOf(over.id as string),
-    );
-    setOrderedIds(newIds);
-    try {
-      await reorderFields.mutateAsync({ id, data: { fieldIds: newIds } });
-      queryClient.invalidateQueries({ queryKey: ["/api/forms", id, "fields"] });
-    } catch {
-      toast.error("Failed to reorder fields");
-    }
-  }, [id, reorderFields, queryClient]);
-
-  // ref so handleDragEnd always reads latest ids without stale closure
-  const orderedIdsRef = useRef(orderedIds);
-  orderedIdsRef.current = orderedIds;
-  // (persistReorder inlined into handleDragEnd above)
-
-  // ── Field draft state ──────────────────────────────────────────────────────
-  type FieldDraft = { label: string; placeholder: string | null; isRequired: boolean; optionsJson: string[] | null };
-  const [fieldDrafts, setFieldDrafts] = useState<Record<string, FieldDraft>>({});
+  const [fieldDrafts, setFieldDrafts] = useState<Record<string, any>>({});
+  const [formDraft, setFormDraft] = useState<Partial<Form>>({});
   const [savingFieldId, setSavingFieldId] = useState<string | null>(null);
+  const [isUpdatingForm, setIsUpdatingForm] = useState(false);
 
-  // Sync new fields into drafts (only initialise — never overwrite unsaved edits)
+  // Sync orderedIds
   useEffect(() => {
-    if (!fields) return;
-    setFieldDrafts(prev => {
-      const next: Record<string, FieldDraft> = {};
-      for (const f of fields) {
-        next[f.id] = prev[f.id] ?? {
-          label: f.label,
-          placeholder: f.placeholder ?? null,
-          isRequired: f.isRequired,
-          optionsJson: f.optionsJson ?? null,
-        };
-      }
-      return next;
-    });
+    if (fields) {
+      setOrderedIds(fields.slice().sort((a, b) => a.orderIndex - b.orderIndex).map(f => f.id));
+    }
   }, [fields]);
 
-  const patchDraft = (fieldId: string, updates: Partial<FieldDraft>) =>
-    setFieldDrafts(prev => ({ ...prev, [fieldId]: { ...prev[fieldId], ...updates } }));
+  const handlePatchDraft = (fieldId: string, updates: any) => {
+    setFieldDrafts(prev => ({ ...prev, [fieldId]: { ...(prev[fieldId] || {}), ...updates } }));
+  };
 
-  const isDirty = (f: { id: string; label: string; placeholder?: string | null; isRequired: boolean; optionsJson?: string[] | null }) => {
-    const d = fieldDrafts[f.id];
-    if (!d) return false;
-    return d.label !== f.label ||
-      d.placeholder !== (f.placeholder ?? null) ||
-      d.isRequired !== f.isRequired ||
-      JSON.stringify(d.optionsJson) !== JSON.stringify(f.optionsJson ?? null);
+  const handleUpdateFormDraft = (updates: Partial<Form>) => {
+    setFormDraft(prev => ({ ...prev, ...updates }));
+  };
+
+  const isFormDirty = () => {
+    if (!form) return false;
+    return Object.keys(formDraft).some(key => {
+      const draftVal = (formDraft as any)[key];
+      const originalVal = (form as any)[key];
+      if (Array.isArray(draftVal)) return JSON.stringify(draftVal) !== JSON.stringify(originalVal);
+      return draftVal !== originalVal;
+    });
+  };
+
+  const isFieldDirty = (field: any) => {
+    const draft = fieldDrafts[field.id];
+    if (!draft) return false;
+    return Object.keys(draft).some(key => {
+        const val = draft[key];
+        const original = (field as any)[key];
+        if (Array.isArray(val)) return JSON.stringify(val) !== JSON.stringify(original);
+        return val !== original;
+    });
   };
 
   const handleSaveField = async (fieldId: string) => {
     const draft = fieldDrafts[fieldId];
-    if (!draft) return;
     setSavingFieldId(fieldId);
     try {
-      await updateField.mutateAsync({
-        id,        // form ID
-        fieldId,   // field ID
-        data: {
-          label: draft.label,
-          placeholder: draft.placeholder,
-          isRequired: draft.isRequired,
-          optionsJson: draft.optionsJson ?? undefined,
-        },
+      await updateField.mutateAsync({ id: id!, fieldId, data: draft });
+      queryClient.invalidateQueries({ queryKey: [`/api/forms/${id}/fields`] });
+      toast({ title: "Success", description: "Field saved" });
+      // Remove draft for this field
+      setFieldDrafts(prev => {
+        const next = { ...prev };
+        delete next[fieldId];
+        return next;
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/forms", id, "fields"] });
-      toast.success("Field saved");
     } catch {
-      toast.error("Failed to save field");
+      toast({ title: "Error", description: "Failed to save field", variant: "destructive" });
     } finally {
       setSavingFieldId(null);
     }
   };
 
-  // Init settings state once when form data first arrives
-  const settingsSynced = useRef(false);
-  useEffect(() => {
-    if (form && !settingsSynced.current) {
-      settingsSynced.current = true;
-      setTitle(form.title);
-      setDescription(form.description || "");
-      setSupportedLanguages(form.supportedLanguages);
-      setPreferredLanguage(form.preferredLanguage || form.originalLanguage);
+  const handleAddField = async (type: string) => {
+    try {
+      await createField.mutateAsync({
+        id: id!,
+        data: {
+          fieldType: type as any,
+          label: "New Field",
+          isRequired: false,
+          orderIndex: orderedIds.length,
+          placeholder: "",
+          optionsJson: (type === 'single_choice' || type === 'multi_choice') ? ["Option 1"] : null
+        }
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/forms/${id}/fields`] });
+      toast({ title: "Success", description: "Field added" });
+    } catch {
+      toast({ title: "Error", description: "Failed to add field", variant: "destructive" });
     }
-  }, [form]);
+  };
+
+  const handleUpdateForm = async (updates: any) => {
+    if (Object.keys(updates).length === 0) {
+      toast({ title: "No changes", description: "There are no changes to save." });
+      return;
+    }
+
+    setIsUpdatingForm(true);
+    try {
+      await updateForm.mutateAsync({ id: id!, data: updates });
+      queryClient.invalidateQueries({ queryKey: [`/api/forms/${id}`] });
+      setFormDraft({});
+      toast({ title: "Success", description: "Form updated" });
+    } catch {
+      toast({ title: "Error", description: "Failed to update form", variant: "destructive" });
+    } finally {
+      setIsUpdatingForm(false);
+    }
+  };
+
+  const handlePublishForm = async () => {
+    try {
+      await publishForm.mutateAsync({
+        id: id!,
+        data: { languages: currentForm.supportedLanguages || [] }
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/forms/${id}`] });
+      toast({ title: "Success", description: "Form published and translations generated!" });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to publish form", variant: "destructive" });
+    }
+  };
 
   if (isFormLoading || isFieldsLoading) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center min-h-[50vh]">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        </div>
-      </DashboardLayout>
-    );
+    return <DashboardLayout><div className="flex justify-center p-12"><Loader2 className="animate-spin" /></div></DashboardLayout>;
   }
 
-  if (!form) return <DashboardLayout><div>Form not found</div></DashboardLayout>;
+  if (!form) return <DashboardLayout>Form not found</DashboardLayout>;
 
-  const handleSaveSettings = async () => {
-    try {
-      await updateForm.mutateAsync({
-        id,
-        data: {
-          title,
-          description,
-          supportedLanguages,
-          preferredLanguage: preferredLanguage || null,
-        }
-      });
-      toast.success("Settings saved successfully");
-      queryClient.invalidateQueries({ queryKey: ["/api/forms", id] });
-    } catch (e) {
-      toast.error("Failed to save settings");
-    }
-  };
-
-  const openAddField = () => {
-    setNewFieldType("short_text");
-    setNewFieldLabel("");
-    setNewFieldPlaceholder("");
-    setNewFieldRequired(false);
-    setNewFieldOptions(["Option 1", "Option 2"]);
-    setIsAddingField(true);
-  };
-
-  const handleSubmitNewField = async () => {
-    if (!newFieldLabel.trim()) return;
-    const isChoice = newFieldType === "single_choice" || newFieldType === "multi_choice";
-    try {
-      const created = await createField.mutateAsync({
-        id,
-        data: {
-          fieldType: newFieldType,
-          label: newFieldLabel.trim(),
-          placeholder: newFieldPlaceholder.trim() || null,
-          isRequired: newFieldRequired,
-          optionsJson: isChoice ? newFieldOptions.filter(o => o.trim()) : undefined,
-          orderIndex: orderedIds.length,
-        }
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/forms", id, "fields"] });
-      // Append the new field id to local order so it shows up immediately
-      setOrderedIds(prev => [...prev, (created as { id: string }).id]);
-      toast.success("Field added");
-      setIsAddingField(false);
-    } catch {
-      toast.error("Failed to add field");
-    }
-  };
-
-  const handleDeleteField = async (fieldId: string) => {
-    try {
-      await deleteField.mutateAsync({ id, fieldId });
-      toast.success("Field deleted");
-      queryClient.invalidateQueries({ queryKey: ["/api/forms", id, "fields"] });
-    } catch (e) {
-      toast.error("Failed to delete field");
-    }
-  };
+  const currentForm = { ...form, ...formDraft };
 
   return (
     <DashboardLayout>
       <div className="max-w-5xl mx-auto space-y-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <h1 className="text-foreground truncate">{form.title}</h1>
-            <div className="flex items-center gap-2 mt-1 flex-wrap">
-              <Badge variant={form.status === 'published' ? 'default' : 'secondary'} className="shrink-0">
-                {form.status}
-              </Badge>
-              <span className="text-sm text-muted-foreground">
-                Original language: {SUPPORTED_LANGUAGES.find(l => l.code === form.originalLanguage)?.name || form.originalLanguage}
-              </span>
-            </div>
-          </div>
-          <div className="flex gap-2 shrink-0">
-            <Button variant="outline" onClick={() => setLocation(`/forms/${id}/share`)} disabled={form.status !== 'published'}>
-              <Share2 className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Share</span>
-            </Button>
-            {form.status !== 'published' && (
-              <Button onClick={() => setLocation(`/forms/${id}/share`)}>
-                <span className="hidden sm:inline">Publish Form</span>
-                <span className="sm:hidden">Publish</span>
-              </Button>
-            )}
-          </div>
-        </div>
+        <EditorHeader 
+          title={currentForm.title}
+          status={currentForm.status}
+          originalLanguage={currentForm.originalLanguage}
+          id={id!}
+          onShare={() => setLocation(`/forms/${id}/share`)}
+          onPublish={handlePublishForm}
+        />
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 sm:max-w-[400px]">
-            <TabsTrigger value="fields" className="gap-1.5 text-xs sm:text-sm">
-              <List className="w-4 h-4 shrink-0" />
-              <span>Fields</span>
-            </TabsTrigger>
-            <TabsTrigger value="settings" className="gap-1.5 text-xs sm:text-sm">
-              <Settings className="w-4 h-4 shrink-0" />
-              <span>Settings</span>
-            </TabsTrigger>
-            <TabsTrigger value="responses" className="gap-1.5 text-xs sm:text-sm">
-              <FileSpreadsheet className="w-4 h-4 shrink-0" />
-              <span>Responses</span>
-            </TabsTrigger>
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-4 max-w-[500px] relative p-1 bg-muted rounded-lg h-10">
+            {[
+              { id: "responses", label: "Responses", icon: FileSpreadsheet },
+              { id: "analytics", label: "Analytics", icon: BarChart2 },
+              { id: "fields", label: "Fields", icon: List },
+              { id: "settings", label: "Settings", icon: Settings },
+            ].map((tab) => (
+              <TabsTrigger 
+                key={tab.id}
+                value={tab.id} 
+                className="relative z-10 h-8 data-[state=active]:bg-transparent data-[state=active]:shadow-none transition-colors px-4"
+              >
+                {activeTab === tab.id && (
+                  <motion.div
+                    layoutId="active-pill"
+                    className="absolute inset-0 bg-background rounded-md shadow-sm"
+                    transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
+                  />
+                )}
+                <span className="relative z-20 flex items-center justify-center font-medium">
+                  <tab.icon className="w-4 h-4 mr-2" />
+                  {tab.label}
+                </span>
+              </TabsTrigger>
+            ))}
           </TabsList>
 
-          <TabsContent value="fields" className="mt-6 space-y-4">
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={orderedIds} strategy={verticalListSortingStrategy}>
-                {orderedIds.map(fieldId => {
-                  const field = fields?.find(f => f.id === fieldId);
-                  if (!field) return null;
-                  const Icon = FIELD_ICONS[field.fieldType] || Type;
-                  const draft = fieldDrafts[field.id];
-                  const dirty = isDirty(field);
-                  const isSaving = savingFieldId === field.id;
-                  const opts = draft?.optionsJson ?? field.optionsJson ?? [];
-
-                  return (
-                  <SortableFieldCard key={field.id} id={field.id}>
-                    {({ listeners, attributes }) => (
-                <Card className={`border-border shadow-sm group transition-colors ${dirty ? "border-foreground/40" : ""}`}>
-                  <CardContent className="p-4 sm:p-6 flex gap-4">
-                    <div
-                      className="mt-1 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none"
-                      {...listeners}
-                      {...attributes}
-                    >
-                      <GripVertical className="w-5 h-5" />
-                    </div>
-                    <div className="flex-1 space-y-4">
-                      {/* Label row */}
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
-                          <Input
-                            value={draft?.label ?? field.label}
-                            onChange={(e) => patchDraft(field.id, { label: e.target.value })}
-                            className="font-medium text-lg border-transparent hover:border-input focus:bg-background px-2 -ml-2"
-                          />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="capitalize flex items-center gap-1 shrink-0">
-                            <Icon className="w-3 h-3" />
-                            {field.fieldType.replace(/_/g, ' ')}
-                          </Badge>
-                          <Button
-                            variant="ghost" size="icon"
-                            className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={() => handleDeleteField(field.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-
-                      {/* Placeholder — show for text-type fields */}
-                      {(field.fieldType === 'short_text' || field.fieldType === 'long_text' || field.fieldType === 'email' || field.fieldType === 'phone') && (
-                        <div>
-                          <Label className="text-xs text-muted-foreground uppercase tracking-wide mb-1 block">Placeholder</Label>
-                          <Input
-                            value={draft?.placeholder ?? field.placeholder ?? ""}
-                            onChange={(e) => patchDraft(field.id, { placeholder: e.target.value || null })}
-                            placeholder="Placeholder text (optional)"
-                            className="text-sm bg-muted/50"
-                          />
-                        </div>
-                      )}
-
-                      {/* Options for choice fields */}
-                      {(field.fieldType === 'single_choice' || field.fieldType === 'multi_choice') && (
-                        <div className="space-y-2">
-                          <Label className="text-xs text-muted-foreground uppercase tracking-wide block">Options</Label>
-                          <div className="space-y-2 pl-2 border-l-2 border-border">
-                            {opts.map((opt, i) => (
-                              <div key={i} className="flex items-center gap-2">
-                                <div className="w-3 h-3 rounded-full border border-muted-foreground/40 flex-shrink-0" />
-                                <Input
-                                  value={opt}
-                                  onChange={(e) => {
-                                    const next = [...opts];
-                                    next[i] = e.target.value;
-                                    patchDraft(field.id, { optionsJson: next });
-                                  }}
-                                  className="h-8 text-sm"
-                                />
-                                <button
-                                  onClick={() => {
-                                    const next = opts.filter((_, j) => j !== i);
-                                    patchDraft(field.id, { optionsJson: next });
-                                  }}
-                                  className="text-muted-foreground hover:text-destructive transition-colors"
-                                >
-                                  <X className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            ))}
-                            <button
-                              onClick={() => patchDraft(field.id, { optionsJson: [...opts, `Option ${opts.length + 1}`] })}
-                              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mt-1"
-                            >
-                              <Plus className="w-3 h-3" /> Add option
-                            </button>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Required toggle + Save */}
-                      <div className="flex items-center justify-between pt-1 border-t border-border/50">
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            checked={draft?.isRequired ?? field.isRequired}
-                            onCheckedChange={(checked) => patchDraft(field.id, { isRequired: checked })}
-                          />
-                          <Label className="text-sm cursor-pointer">Required</Label>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          {dirty && (
-                            <span className="text-xs text-muted-foreground">Unsaved changes</span>
-                          )}
-                          <Button
-                            size="sm"
-                            disabled={!dirty || isSaving}
-                            onClick={() => handleSaveField(field.id)}
-                            className="min-w-[72px]"
-                          >
-                            {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Save"}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                    )}
-                  </SortableFieldCard>
-                  );
-                })}
-              </SortableContext>
-            </DndContext>
-
-            {/* Add field section */}
-            {isAddingField ? (
-              <Card className="border-2 border-dashed border-foreground/20 bg-muted/20">
-                <CardContent className="p-5 space-y-5">
-                  {/* Type picker */}
-                  <div>
-                    <Label className="text-xs text-muted-foreground uppercase tracking-wide mb-2 block">Field Type</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {Object.entries(FIELD_ICONS).map(([type, Icon]) => (
-                        <button
-                          key={type}
-                          type="button"
-                          onClick={() => {
-                            setNewFieldType(type as FormFieldFieldType);
-                            if (type === "single_choice" || type === "multi_choice") {
-                              setNewFieldOptions(["Option 1", "Option 2"]);
-                            }
-                          }}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 text-sm border rounded-md transition-colors capitalize ${
-                            newFieldType === type
-                              ? "bg-foreground text-background border-foreground"
-                              : "border-border hover:bg-muted/60"
-                          }`}
-                        >
-                          <Icon className="w-3.5 h-3.5" />
-                          {type.replace(/_/g, " ")}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Label */}
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground uppercase tracking-wide">Question Label</Label>
-                    <Input
-                      autoFocus
-                      value={newFieldLabel}
-                      onChange={(e) => setNewFieldLabel(e.target.value)}
-                      placeholder="e.g. What is your name?"
-                      onKeyDown={(e) => { if (e.key === "Enter" && newFieldLabel.trim()) handleSubmitNewField(); }}
-                    />
-                  </div>
-
-                  {/* Placeholder — text-type fields only */}
-                  {(newFieldType === "short_text" || newFieldType === "long_text" || newFieldType === "email" || newFieldType === "phone") && (
-                    <div className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground uppercase tracking-wide">Placeholder (optional)</Label>
-                      <Input
-                        value={newFieldPlaceholder}
-                        onChange={(e) => setNewFieldPlaceholder(e.target.value)}
-                        placeholder="Hint text shown inside the input…"
-                        className="bg-muted/40"
-                      />
-                    </div>
-                  )}
-
-                  {/* Options — choice fields only */}
-                  {(newFieldType === "single_choice" || newFieldType === "multi_choice") && (
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground uppercase tracking-wide block">Options</Label>
-                      <div className="space-y-2 pl-2 border-l-2 border-border">
-                        {newFieldOptions.map((opt, i) => (
-                          <div key={i} className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full border border-muted-foreground/40 flex-shrink-0" />
-                            <Input
-                              value={opt}
-                              onChange={(e) => {
-                                const next = [...newFieldOptions];
-                                next[i] = e.target.value;
-                                setNewFieldOptions(next);
-                              }}
-                              className="h-8 text-sm"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setNewFieldOptions(newFieldOptions.filter((_, j) => j !== i))}
-                              className="text-muted-foreground hover:text-destructive transition-colors"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ))}
-                        <button
-                          type="button"
-                          onClick={() => setNewFieldOptions([...newFieldOptions, `Option ${newFieldOptions.length + 1}`])}
-                          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mt-1"
-                        >
-                          <Plus className="w-3 h-3" /> Add option
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Required toggle + actions */}
-                  <div className="flex items-center justify-between pt-1 border-t border-border/50">
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        id="new-field-required"
-                        checked={newFieldRequired}
-                        onCheckedChange={setNewFieldRequired}
-                      />
-                      <Label htmlFor="new-field-required" className="text-sm cursor-pointer">Required</Label>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="ghost" size="sm" onClick={() => setIsAddingField(false)}>
-                        Cancel
-                      </Button>
-                      <Button
-                        size="sm"
-                        disabled={!newFieldLabel.trim() || createField.isPending}
-                        onClick={handleSubmitNewField}
-                      >
-                        {createField.isPending
-                          ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
-                          : <Plus className="w-3.5 h-3.5 mr-1" />}
-                        Add Field
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <Button
-                variant="outline"
-                className="w-full border-dashed h-11 text-muted-foreground hover:text-foreground"
-                onClick={openAddField}
+          <div className="relative pt-6 px-1 pb-4">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
               >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Field
-              </Button>
-            )}
-          </TabsContent>
-
-          <TabsContent value="settings" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Form Settings</CardTitle>
-                <CardDescription>Manage your form's configuration and languages.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <Label>Form Title</Label>
-                  <Input value={title} onChange={(e) => setTitle(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Description</Label>
-                  <Textarea value={description} onChange={(e) => setDescription(e.target.value)} />
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Your Preferred Language</Label>
-                    <p className="text-xs text-muted-foreground mt-1 mb-3">
-                      Responses submitted in this language will not be translated — you can already read them.
-                    </p>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 border border-border p-3">
-                      {SUPPORTED_LANGUAGES.filter(l => supportedLanguages.includes(l.code) || l.code === form.originalLanguage).map((lang) => {
-                        const isSelected = (preferredLanguage || form.originalLanguage) === lang.code;
-                        return (
-                          <button
-                            key={lang.code}
-                            type="button"
-                            onClick={() => setPreferredLanguage(lang.code)}
-                            className={`flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors ${
-                              isSelected
-                                ? "bg-foreground text-background"
-                                : "hover:bg-muted/50 text-foreground"
-                            }`}
-                          >
-                            {lang.name}
-                            {lang.code === form.originalLanguage && (
-                              <span className={`text-xs ml-auto ${isSelected ? "text-background/60" : "text-muted-foreground"}`}>original</span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Supported Respondent Languages</Label>
-                    <p className="text-xs text-muted-foreground mt-1 mb-3">
-                      Languages your respondents can use to fill out this form.
-                    </p>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 border border-border p-3">
-                      {SUPPORTED_LANGUAGES.map((lang) => (
-                        <div key={lang.code} className="flex items-center space-x-2 px-1 py-1">
-                          <Checkbox
-                            id={`lang-${lang.code}`}
-                            checked={supportedLanguages.includes(lang.code)}
-                            disabled={lang.code === form.originalLanguage}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                setSupportedLanguages([...supportedLanguages, lang.code]);
-                              } else {
-                                setSupportedLanguages(supportedLanguages.filter(c => c !== lang.code));
-                              }
-                            }}
-                          />
-                          <Label htmlFor={`lang-${lang.code}`} className="font-normal cursor-pointer text-sm">
-                            {lang.name}
-                            {lang.code === form.originalLanguage && <span className="text-muted-foreground ml-1">(original)</span>}
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Button onClick={handleSaveSettings}>Save Settings</Button>
-              </CardFooter>
-            </Card>
-
-            {/* ── Template Card ─────────────────────────────────────────────── */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <LayoutTemplate className="w-4 h-4 text-muted-foreground" />
-                    <CardTitle className="text-base">Template Gallery</CardTitle>
-                  </div>
-                  {existingTemplate && (
-                    <span className="text-xs font-medium uppercase tracking-wide border border-border px-2 py-0.5">
-                      {existingTemplate.isPublic ? "Public" : "Private"}
-                    </span>
-                  )}
-                </div>
-                <CardDescription>
-                  {existingTemplate
-                    ? `Published as a template — ${existingTemplate.useCount} use${existingTemplate.useCount !== 1 ? "s" : ""} so far.`
-                    : "Publish this form to the template gallery so others can use it as a starting point."}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Template Title</Label>
-                  <Input
-                    value={tmplTitle || form.title}
-                    onChange={(e) => setTmplTitle(e.target.value)}
-                    placeholder={form.title}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Description <span className="text-muted-foreground font-normal">(optional)</span></Label>
-                  <Textarea
-                    value={tmplDescription}
-                    onChange={(e) => setTmplDescription(e.target.value)}
-                    placeholder="Describe what this template is for…"
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Category</Label>
-                  <Select value={tmplCategory} onValueChange={setTmplCategory}>
-                    <SelectTrigger className="bg-muted/30">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {["general","survey","feedback","registration","quiz","contact","event","hr","education"].map(c => (
-                        <SelectItem key={c} value={c} className="capitalize">{c.charAt(0).toUpperCase() + c.slice(1)}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center justify-between py-1">
-                  <div>
-                    <p className="text-sm font-medium">Public visibility</p>
-                    <p className="text-xs text-muted-foreground">Anyone can browse and use this template.</p>
-                  </div>
-                  <Switch checked={tmplIsPublic} onCheckedChange={setTmplIsPublic} />
-                </div>
-              </CardContent>
-              <CardFooter className="flex gap-3">
-                <Button
-                  onClick={async () => {
-                    try {
-                      await saveTemplate.mutateAsync({
-                        id,
-                        data: {
-                          title: tmplTitle || form.title,
-                          description: tmplDescription || null,
-                          category: tmplCategory,
-                          isPublic: tmplIsPublic,
-                        },
-                      });
-                      await refetchTemplate();
-                      toast.success(existingTemplate ? "Template updated" : "Form published as template");
-                    } catch {
-                      toast.error("Failed to save template.");
-                    }
-                  }}
-                  disabled={saveTemplate.isPending}
-                >
-                  {saveTemplate.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  {existingTemplate ? "Update Template" : "Publish as Template"}
-                </Button>
-                {existingTemplate && (
-                  <Button
-                    variant="outline"
-                    onClick={async () => {
-                      try {
-                        await removeTemplate.mutateAsync({ id });
-                        await refetchTemplate();
-                        toast.success("Removed from template gallery");
-                      } catch {
-                        toast.error("Failed to remove template.");
-                      }
+                <TabsContent value="fields" className="mt-0 space-y-4 outline-none">
+                  <FieldList 
+                    fields={fields || []}
+                    orderedIds={orderedIds}
+                    fieldDrafts={fieldDrafts}
+                    savingFieldId={savingFieldId}
+                    onReorder={async (newIds) => {
+                      setOrderedIds(newIds);
+                      await reorderFields.mutateAsync({ id: id!, data: { fieldIds: newIds } });
+                      queryClient.invalidateQueries({ queryKey: [`/api/forms/${id}/fields`] });
                     }}
-                    disabled={removeTemplate.isPending}
-                  >
-                    {removeTemplate.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                    Remove from Gallery
-                  </Button>
-                )}
-              </CardFooter>
-            </Card>
-
-            <Card className="border-destructive/30">
-              <CardHeader>
-                <CardTitle className="text-destructive text-base">Danger Zone</CardTitle>
-                <CardDescription>Permanently delete this form and all its responses. This cannot be undone.</CardDescription>
-              </CardHeader>
-              <CardFooter>
-                <Button
-                  variant="destructive"
-                  onClick={() => setShowDeleteDialog(true)}
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete Form
-                </Button>
-              </CardFooter>
-            </Card>
-
-            <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete this form?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    <strong>"{form.title}"</strong> and all its responses will be permanently deleted. This cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    onClick={async () => {
-                      try {
-                        await deleteFormMutation.mutateAsync({ id });
-                        toast.success("Form deleted");
-                        setLocation("/");
-                      } catch {
-                        toast.error("Failed to delete form.");
-                      }
+                    onPatchDraft={handlePatchDraft}
+                    onSaveField={handleSaveField}
+                    onDeleteField={async (fid) => {
+                      await deleteField.mutateAsync({ id: id!, fieldId: fid });
+                      queryClient.invalidateQueries({ queryKey: [`/api/forms/${id}/fields`] });
                     }}
-                  >
-                    Delete
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </TabsContent>
+                    isDirty={isFieldDirty}
+                  />
+                  
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="w-full border-dashed">
+                        <Plus className="w-4 h-4 mr-2" />Add Field
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuItem onClick={() => handleAddField('short_text')}>Short Text</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleAddField('long_text')}>Long Text</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleAddField('single_choice')}>Single Choice</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleAddField('multi_choice')}>Multiple Choice</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleAddField('rating')}>Rating</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleAddField('date')}>Date</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleAddField('email')}>Email</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleAddField('phone')}>Phone</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TabsContent>
 
-          <TabsContent value="responses" className="mt-6">
-            {(() => {
-              const orderedFields = (fields || []).slice().sort((a, b) => a.orderIndex - b.orderIndex);
+                <TabsContent value="settings" className="mt-0 outline-none">
+                  <FormSettings 
+                    title={currentForm.title}
+                    description={currentForm.description || ""}
+                    featureImageUrl={currentForm.featureImageUrl || ""}
+                    supportedLanguages={currentForm.supportedLanguages || []}
+                    preferredLanguage={currentForm.preferredLanguage || ""}
+                    originalLanguage={form.originalLanguage}
+                    isSaving={isUpdatingForm}
+                    isDirty={isFormDirty()}
+                    onUpdate={handleUpdateFormDraft}
+                    onSave={() => handleUpdateForm(formDraft)}
+                  />
+                </TabsContent>
 
-              // ── Analytics computed client-side ──────────────────────────────
-              const subs = submissions || [];
-              const total = subs.length;
+                <TabsContent value="responses" className="mt-0 outline-none">
+                  <ResponsesTab 
+                    formTitle={form.title}
+                    submissions={submissions || []}
+                    fields={fields || []}
+                    isLoading={isSubmissionsLoading}
+                    onViewSubmission={setSelectedSubmission}
+                    selectedSubmissionId={selectedSubmission?.id}
+                  />
+                </TabsContent>
 
-              // 7-day weekly trend
-              const today = startOfDay(new Date());
-              const weeklyTrend = Array.from({ length: 7 }, (_, i) => {
-                const day = subDays(today, 6 - i);
-                const dayStr = format(day, "MMM d");
-                const count = subs.filter(s => format(startOfDay(new Date(s.submittedAt)), "MMM d") === dayStr).length;
-                return { date: dayStr, count };
-              });
-              const weekTotal = weeklyTrend.reduce((a, d) => a + d.count, 0);
-              const avgPerDay = total > 0 ? (weekTotal / 7).toFixed(1) : "0";
-
-              // Language breakdown
-              const langCounts: Record<string, number> = {};
-              subs.forEach(s => { langCounts[s.respondentLanguage] = (langCounts[s.respondentLanguage] || 0) + 1; });
-              const langBreakdown = Object.entries(langCounts)
-                .map(([code, count]) => ({ code, name: SUPPORTED_LANGUAGES.find(l => l.code === code)?.name || code, count }))
-                .sort((a, b) => b.count - a.count);
-              const topLang = langBreakdown[0];
-              const maxLangCount = topLang?.count || 1;
-
-              // Per-field answer distribution for choice + rating fields
-              const choiceFields = orderedFields.filter(f =>
-                f.fieldType === "single_choice" || f.fieldType === "multi_choice" || f.fieldType === "rating"
-              );
-              const fieldStats = choiceFields.map(f => {
-                const tally: Record<string, number> = {};
-                subs.forEach(s => {
-                  const raw = (s.rawResponsesJson || {}) as Record<string, any>;
-                  const val = raw[f.id];
-                  if (val == null) return;
-                  const vals = Array.isArray(val) ? val : [val];
-                  vals.forEach(v => { tally[String(v)] = (tally[String(v)] || 0) + 1; });
-                });
-                const options = f.fieldType === "rating"
-                  ? ["1","2","3","4","5"]
-                  : (f.optionsJson || Object.keys(tally));
-                const data = options.map(opt => ({ label: opt, count: tally[opt] || 0 }));
-                const maxCount = Math.max(...data.map(d => d.count), 1);
-                return { field: f, data, maxCount };
-              }).filter(fs => fs.data.some(d => d.count > 0));
-
-              // ── CSV export ──────────────────────────────────────────────────
-              const handleExportCSV = () => {
-                if (!subs.length) return;
-                const metaCols = ["Submitted At", "Language", "Translation"];
-                const fieldCols = orderedFields.map(f => f.label);
-                const header = [...metaCols, ...fieldCols];
-                const rows = subs.map(sub => {
-                  const data = sub.translatedResponsesJson || sub.rawResponsesJson || {};
-                  const lName = SUPPORTED_LANGUAGES.find(l => l.code === sub.respondentLanguage)?.name || sub.respondentLanguage;
-                  const meta = [format(new Date(sub.submittedAt), "yyyy-MM-dd HH:mm"), lName, sub.translationStatus];
-                  const answers = orderedFields.map(f => {
-                    const val = (data as Record<string, any>)[f.id];
-                    if (Array.isArray(val)) return val.join("; ");
-                    return val != null ? String(val) : "";
-                  });
-                  return [...meta, ...answers];
-                });
-                const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
-                const csv = [header, ...rows].map(r => r.map(escape).join(",")).join("\n");
-                const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `${form.title.replace(/\s+/g, "_")}_responses.csv`;
-                a.click();
-                URL.revokeObjectURL(url);
-              };
-
-              return (
-                <div className="space-y-8">
-                  {/* Header */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <p className="text-sm text-muted-foreground">
-                        {total} {total === 1 ? "response" : "responses"} collected
-                      </p>
-                      {/* Live indicator */}
-                      <div className="flex items-center gap-1.5">
-                        <span className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-foreground opacity-40" />
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-foreground" />
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {lastUpdatedAt ? `Updated ${format(lastUpdatedAt, "HH:mm:ss")}` : "Live"}
-                        </span>
-                      </div>
-                      {newResponseCount > 0 && (
-                        <span className="text-xs font-medium bg-foreground text-background px-2 py-0.5">
-                          +{newResponseCount} new
-                        </span>
-                      )}
-                    </div>
-                    <button
-                      onClick={handleExportCSV}
-                      disabled={!total}
-                      className="flex items-center gap-2 px-4 py-2 text-sm border border-border hover:border-foreground text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <Download className="w-4 h-4" />
-                      Export CSV
-                    </button>
-                  </div>
-
-                  {isSubmissionsLoading ? (
-                    <div className="flex justify-center py-16">
-                      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : !total ? (
-                    <div className="border border-border py-20 text-center">
-                      <FileSpreadsheet className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
-                      <p className="text-sm font-medium text-foreground">No responses yet</p>
-                      <p className="text-xs text-muted-foreground mt-1">Share your form to start collecting responses.</p>
-                    </div>
-                  ) : (
-                    <>
-                      {/* ── Stat tiles ── */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 border border-border divide-y sm:divide-y-0 sm:divide-x divide-border">
-                        {[
-                          { label: "Total Responses", value: total },
-                          { label: "Avg / Day (7d)", value: avgPerDay },
-                          { label: "Top Language", value: topLang?.name || "—" },
-                        ].map(({ label, value }) => (
-                          <div key={label} className="px-5 py-4 sm:px-6 sm:py-5">
-                            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">{label}</p>
-                            <p className="text-2xl font-semibold text-foreground" style={{ fontFamily: "var(--app-font-display)" }}>{value}</p>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* ── Charts row ── */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                        {/* Weekly trend */}
-                        <div className="border border-border p-5">
-                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-4">Responses — Last 7 Days</p>
-                          <ResponsiveContainer width="100%" height={140}>
-                            <BarChart data={weeklyTrend} barSize={22}>
-                              <XAxis dataKey="date" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
-                              <YAxis hide allowDecimals={false} />
-                              <Tooltip
-                                contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))", borderRadius: 0, fontSize: 12, padding: "4px 10px" }}
-                                cursor={{ fill: "hsl(var(--muted))" }}
-                              />
-                              <Bar dataKey="count" radius={0}>
-                                {weeklyTrend.map((_, i) => (
-                                  <Cell key={i} fill={WEEKLY_COLORS[i] ?? WEEKLY_COLORS[WEEKLY_COLORS.length - 1]} />
-                                ))}
-                              </Bar>
-                            </BarChart>
-                          </ResponsiveContainer>
-                        </div>
-
-                        {/* Language breakdown */}
-                        <div className="border border-border p-5">
-                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-4">Respondent Languages</p>
-                          {langBreakdown.length === 0 ? (
-                            <p className="text-sm text-muted-foreground">No data</p>
-                          ) : (
-                            <div className="space-y-3">
-                              {langBreakdown.map(({ code, name, count }, idx) => (
-                                <div key={code}>
-                                  <div className="flex justify-between text-xs mb-1">
-                                    <span className="font-medium text-foreground">{name}</span>
-                                    <span className="text-muted-foreground">{count} ({Math.round((count / total) * 100)}%)</span>
-                                  </div>
-                                  <div className="h-2 bg-muted border border-border">
-                                    <div
-                                      className="h-full transition-all"
-                                      style={{ width: `${(count / maxLangCount) * 100}%`, backgroundColor: LANG_COLORS[idx % LANG_COLORS.length] }}
-                                    />
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* ── Per-field distributions ── */}
-                      {fieldStats.length > 0 && (
-                        <div>
-                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-4">Answer Distribution</p>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {fieldStats.map(({ field: f, data: fData, maxCount }) => (
-                              <div key={f.id} className="border border-border p-4">
-                                <p className="text-xs font-medium text-foreground mb-3 truncate" title={f.label}>{f.label}</p>
-                                <div className="space-y-2">
-                                  {fData.map(({ label, count }, optIdx) => (
-                                    <div key={label}>
-                                      <div className="flex justify-between text-xs mb-1">
-                                        <span className="text-muted-foreground truncate max-w-[140px]" title={label}>{label}</span>
-                                        <span className="text-foreground font-medium ml-2 shrink-0">{count}</span>
-                                      </div>
-                                      <div className="h-1.5 bg-muted border border-border">
-                                        <div
-                                          className="h-full transition-all"
-                                          style={{
-                                            width: `${(count / maxCount) * 100}%`,
-                                            backgroundColor: FIELD_OPTION_COLORS[optIdx % FIELD_OPTION_COLORS.length],
-                                          }}
-                                        />
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* ── Individual responses table ── */}
-                      <div>
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-4">Individual Responses</p>
-                        <div className="border border-border overflow-x-auto">
-                          <table className="w-full text-sm">
-                            <thead>
-                              <tr className="border-b border-border bg-muted/40">
-                                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">#</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">Date</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">Language</th>
-                                {orderedFields.map(f => (
-                                  <th key={f.id} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap max-w-[200px]">
-                                    <span className="block truncate max-w-[180px]">{f.label}</span>
-                                  </th>
-                                ))}
-                                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">Translation</th>
-                                <th className="px-4 py-3 w-20" />
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {subs.map((sub, idx) => {
-                                const data = (sub.translatedResponsesJson || sub.rawResponsesJson || {}) as Record<string, any>;
-                                const subLangName = SUPPORTED_LANGUAGES.find(l => l.code === sub.respondentLanguage)?.name || sub.respondentLanguage;
-                                const isSelected = selectedSubmission?.id === sub.id;
-                                return (
-                                  <tr
-                                    key={sub.id}
-                                    onClick={() => setSelectedSubmission(isSelected ? null : sub)}
-                                    className={`border-b border-border last:border-0 transition-colors cursor-pointer ${isSelected ? "bg-muted/40" : "hover:bg-muted/20"}`}
-                                  >
-                                    <td className="px-4 py-3 text-muted-foreground">{idx + 1}</td>
-                                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                                      {format(new Date(sub.submittedAt), "MMM d, yyyy · HH:mm")}
-                                    </td>
-                                    <td className="px-4 py-3 whitespace-nowrap">
-                                      <span className="border border-border px-2 py-0.5 text-xs font-medium">{subLangName}</span>
-                                    </td>
-                                    {orderedFields.map(f => {
-                                      const val = data[f.id];
-                                      const display = Array.isArray(val) ? val.join(", ") : val != null ? String(val) : "";
-                                      return (
-                                        <td key={f.id} className="px-4 py-3 max-w-[200px]">
-                                          <span className="block truncate" title={display}>{display || <span className="text-muted-foreground/50">—</span>}</span>
-                                        </td>
-                                      );
-                                    })}
-                                    <td className="px-4 py-3 whitespace-nowrap">
-                                      <span className={`text-xs font-medium uppercase tracking-wide ${
-                                        sub.translationStatus === "done" ? "text-foreground" :
-                                        sub.translationStatus === "skipped" ? "text-muted-foreground" :
-                                        sub.translationStatus === "pending" ? "text-muted-foreground" :
-                                        "text-destructive"
-                                      }`}>
-                                        {sub.translationStatus}
-                                      </span>
-                                    </td>
-                                    <td className="px-4 py-3">
-                                      <button
-                                        onClick={(e) => { e.stopPropagation(); setSelectedSubmission(isSelected ? null : sub); }}
-                                        className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors border border-border hover:border-foreground px-2 py-1 whitespace-nowrap"
-                                      >
-                                        View
-                                        <ChevronRight className="w-3 h-3" />
-                                      </button>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              );
-            })()}
-          </TabsContent>
+                <TabsContent value="analytics" className="mt-0 outline-none">
+                  <AnalyticsDashboard 
+                    formTitle={form.title}
+                    submissions={submissions || []}
+                    fields={fields || []}
+                    isLoading={isSubmissionsLoading}
+                    lastUpdatedAt={dataUpdatedAt ? new Date(dataUpdatedAt) : null}
+                    newResponseCount={0}
+                  />
+                </TabsContent>
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </Tabs>
       </div>
 
-      {/* Response Detail Drawer */}
-      {selectedSubmission && (() => {
-        const orderedFields = (fields || []).slice().sort((a, b) => a.orderIndex - b.orderIndex);
-        const raw = (selectedSubmission.rawResponsesJson || {}) as Record<string, any>;
-        const translated = (selectedSubmission.translatedResponsesJson || {}) as Record<string, any>;
-        const hasTranslation = selectedSubmission.translationStatus === "done";
-        const drawerLangName = SUPPORTED_LANGUAGES.find(l => l.code === selectedSubmission.respondentLanguage)?.name || selectedSubmission.respondentLanguage;
-
-        return (
-          <>
-            {/* Backdrop */}
-            <div
-              className="fixed inset-0 bg-black/20 z-40"
-              onClick={() => setSelectedSubmission(null)}
-            />
-            {/* Panel */}
-            <div className="fixed right-0 top-0 h-full w-full max-w-md bg-background border-l border-border z-50 flex flex-col shadow-xl">
-              {/* Drawer Header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
-                <div>
-                  <p className="text-sm font-semibold text-foreground">Response Detail</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {format(new Date(selectedSubmission.submittedAt), "MMM d, yyyy · HH:mm")}
-                    {" · "}
-                    <span className="font-medium">{drawerLangName}</span>
-                  </p>
-                </div>
-                <button
-                  onClick={() => setSelectedSubmission(null)}
-                  className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Translation status badge */}
-              <div className="px-6 py-3 border-b border-border shrink-0 flex items-center gap-3">
-                <span className="text-xs text-muted-foreground uppercase tracking-wide">Translation</span>
-                <span className={`text-xs font-medium uppercase tracking-wide ${
-                  selectedSubmission.translationStatus === "done" ? "text-foreground" :
-                  selectedSubmission.translationStatus === "skipped" ? "text-muted-foreground" :
-                  "text-muted-foreground"
-                }`}>
-                  {selectedSubmission.translationStatus === "done" ? "Translated" :
-                   selectedSubmission.translationStatus === "skipped" ? "No translation needed" :
-                   selectedSubmission.translationStatus}
-                </span>
-              </div>
-
-              {/* Fields */}
-              <div className="flex-1 overflow-y-auto">
-                {hasTranslation && (
-                  <div className="grid grid-cols-2 px-6 py-2 border-b border-border bg-muted/30">
-                    <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Original</span>
-                    <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Translated</span>
-                  </div>
-                )}
-                <div className="divide-y divide-border">
-                  {orderedFields.map(f => {
-                    const rawVal = raw[f.id];
-                    const translatedVal = translated[f.id];
-                    const rawDisplay = Array.isArray(rawVal) ? rawVal.join(", ") : rawVal != null ? String(rawVal) : "—";
-                    const translatedDisplay = Array.isArray(translatedVal) ? translatedVal.join(", ") : translatedVal != null ? String(translatedVal) : null;
-
-                    return (
-                      <div key={f.id} className="px-6 py-4">
-                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">{f.label}</p>
-                        {hasTranslation ? (
-                          <div className="grid grid-cols-2 gap-4">
-                            <p className="text-sm text-foreground leading-relaxed">{rawDisplay}</p>
-                            <p className="text-sm text-foreground leading-relaxed">{translatedDisplay || <span className="text-muted-foreground/50">—</span>}</p>
-                          </div>
-                        ) : (
-                          <p className="text-sm text-foreground leading-relaxed">{rawDisplay}</p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </>
-        );
-      })()}
+      <ResponseDrawer 
+        submission={selectedSubmission}
+        fields={fields || []}
+        onClose={() => setSelectedSubmission(null)}
+      />
     </DashboardLayout>
   );
 }

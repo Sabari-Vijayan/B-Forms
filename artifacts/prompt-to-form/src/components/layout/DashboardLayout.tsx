@@ -1,8 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useGetMe } from "@workspace/api-client-react";
 import { logout } from "@/lib/auth";
-import { LogOut, LayoutDashboard, Plus, LayoutTemplate } from "lucide-react";
+import { LogOut, LayoutDashboard, Plus, LayoutTemplate, User, ChevronLeft, ChevronRight } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { LogoIcon } from "@/components/Logo";
 
@@ -14,8 +14,19 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [location, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { data: user, isLoading, error } = useGetMe({
-    query: { retry: false },
+    query: { retry: false, queryKey: ["/api/auth/me"] },
   });
+
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("sidebar-collapsed") === "true";
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    localStorage.setItem("sidebar-collapsed", String(isCollapsed));
+  }, [isCollapsed]);
 
   useEffect(() => {
     if (!isLoading && error && !user) {
@@ -47,14 +58,21 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     return (
       <Link
         href={href}
-        className={`flex items-center gap-3 px-3 py-2 text-sm transition-colors ${
+        className={`flex items-center gap-3 px-3 py-2 text-sm transition-all relative group ${
           active
             ? "font-medium text-foreground border-b border-foreground"
             : "text-muted-foreground hover:text-foreground"
         }`}
       >
-        <Icon className="w-4 h-4" />
-        {label}
+        <Icon className="w-4 h-4 shrink-0" />
+        <span className={`transition-opacity duration-300 ${isCollapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100"}`}>
+          {label}
+        </span>
+        {isCollapsed && (
+          <div className="absolute left-14 bg-foreground text-background text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
+            {label}
+          </div>
+        )}
       </Link>
     );
   };
@@ -77,34 +95,60 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   return (
     <div className="min-h-screen flex bg-background">
       {/* Sidebar — desktop only */}
-      <aside className="w-60 border-r border-border bg-sidebar hidden md:flex flex-col shrink-0">
-        <div className="h-16 flex items-center px-6 border-b border-border">
+      <aside 
+        className={`border-r border-border bg-sidebar hidden md:flex flex-col shrink-0 h-screen sticky top-0 transition-all duration-300 ease-in-out ${
+          isCollapsed ? "w-16" : "w-60"
+        }`}
+      >
+        <div className={`h-16 flex items-center border-b border-border px-4 transition-all ${isCollapsed ? "justify-center" : "px-6"}`}>
           <Link href="/" className="flex items-center gap-2.5 text-sm tracking-tight text-foreground/90" style={{ fontFamily: "var(--app-font-display)", fontWeight: 600 }}>
-            <LogoIcon size={26} />
-            <span className="tracking-[0.22em] uppercase">B-Forms</span>
+            <LogoIcon size={isCollapsed ? 32 : 26} />
+            <span className={`tracking-[0.22em] uppercase transition-all duration-300 overflow-hidden ${isCollapsed ? "w-0 opacity-0" : "w-auto opacity-100"}`}>
+              B-Forms
+            </span>
           </Link>
         </div>
 
-        <nav className="flex-1 p-4 flex flex-col gap-1">
+        <nav className="flex-1 p-4 flex flex-col gap-1 overflow-y-auto overflow-x-hidden">
           {navLink("/", "Dashboard", LayoutDashboard)}
           {navLink("/create", "Create Form", Plus)}
           {navLink("/templates", "Templates", LayoutTemplate)}
+          {navLink("/profile", "Profile", User)}
         </nav>
 
-        <div className="p-4 border-t border-border">
-          <p className="text-xs text-muted-foreground truncate px-3 mb-3">{user.email}</p>
+        <div className="mt-auto flex flex-col">
           <button
-            onClick={handleLogout}
-            className="flex items-center gap-2.5 px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-full"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="flex items-center justify-center h-10 border-t border-b border-border text-muted-foreground hover:text-foreground transition-colors hover:bg-muted/50"
+            title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
           >
-            <LogOut className="w-4 h-4" />
-            Sign Out
+            {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
+
+          <div className="p-4 bg-sidebar">
+            <p className={`text-[10px] text-muted-foreground truncate px-3 mb-3 transition-opacity duration-300 ${isCollapsed ? "opacity-0" : "opacity-100"}`}>
+              {user.email}
+            </p>
+            <button
+              onClick={handleLogout}
+              className={`flex items-center gap-2.5 px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-full group relative ${isCollapsed ? "justify-center" : ""}`}
+            >
+              <LogOut className="w-4 h-4 shrink-0" />
+              <span className={`transition-opacity duration-300 ${isCollapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100"}`}>
+                Sign Out
+              </span>
+              {isCollapsed && (
+                <div className="absolute left-14 bg-foreground text-background text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
+                  Sign Out
+                </div>
+              )}
+            </button>
+          </div>
         </div>
       </aside>
 
       {/* Main */}
-      <main className="flex-1 flex flex-col min-h-[100dvh] overflow-auto">
+      <main className="flex-1 flex flex-col min-h-screen min-w-0">
         {/* Mobile Header */}
         <header className="md:hidden h-14 border-b border-border bg-background flex items-center px-4 justify-between sticky top-0 z-10">
           <Link href="/" className="text-sm flex items-center gap-2 text-foreground/90" style={{ fontFamily: "var(--app-font-display)", fontWeight: 600 }}>
@@ -113,7 +157,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           </Link>
         </header>
 
-        <div className="flex-1 p-4 sm:p-6 md:p-10 max-w-6xl mx-auto w-full pb-20 md:pb-10">
+        <div className="flex-1 p-4 sm:p-6 md:p-10 max-w-6xl mx-auto w-full pb-20 md:pb-10 overflow-y-auto">
           {children}
         </div>
 
@@ -122,13 +166,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           {mobileNavLink("/", "Dashboard", LayoutDashboard)}
           {mobileNavLink("/create", "New", Plus)}
           {mobileNavLink("/templates", "Templates", LayoutTemplate)}
-          <button
-            onClick={handleLogout}
-            className="flex flex-col items-center gap-1 px-5 py-2 text-xs text-muted-foreground"
-          >
-            <LogOut className="w-5 h-5" />
-            Sign Out
-          </button>
+          {mobileNavLink("/profile", "Profile", User)}
         </nav>
       </main>
     </div>

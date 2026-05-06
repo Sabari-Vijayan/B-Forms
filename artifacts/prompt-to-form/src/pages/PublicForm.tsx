@@ -52,7 +52,8 @@ export default function PublicForm() {
   const { data: form, isLoading, error } = useGetPublicForm(slug as string, { 
     query: { 
       enabled: !!slug,
-      staleTime: 300_000 // 5 minutes cache for public forms
+      staleTime: 300_000, // 5 minutes cache for public forms
+      queryKey: [`/api/public/forms/${slug}`]
     } 
   });
   const submitForm = useSubmitForm();
@@ -73,6 +74,7 @@ export default function PublicForm() {
       }, 800);
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [search, form, isLoading]);
 
   const normalizeLang = (lang: string) => lang.toLowerCase().split("-")[0];
@@ -207,7 +209,17 @@ export default function PublicForm() {
 
 
 
-        <Card className={`shadow-lg border-t-4 border-t-primary/80 print:shadow-none print:border-0 print:bg-white print:p-0 transition-all duration-200 ${isSwitchingLanguage ? "opacity-70 saturate-75" : "opacity-100"}`}>
+        <Card className={`shadow-xl border-t-4 border-t-primary print:shadow-none print:border-0 print:bg-white print:p-0 transition-all duration-200 overflow-hidden ${isSwitchingLanguage ? "opacity-70 saturate-75" : "opacity-100"}`}>
+          {form.featureImageUrl && (
+            <div className="aspect-[21/9] w-full overflow-hidden border-b print:hidden relative">
+              <img 
+                src={form.featureImageUrl} 
+                alt={title} 
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-background/10 to-transparent" />
+            </div>
+          )}
           <form onSubmit={handleSubmit}>
             <CardHeader className="border-b pb-6 print:border-b-2 print:border-black print:pb-4 print:mb-8 print:pt-0 print:px-0">
               <CardTitle className="text-3xl font-bold print:text-3xl">{title}</CardTitle>

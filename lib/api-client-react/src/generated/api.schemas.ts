@@ -3,9 +3,9 @@
  * Do not edit manually.
  * Api
  * Prompt-to-Form API
- * OpenAPI spec version: 0.1.0
+ * OpenAPI spec version: 1.0.0
  */
-export interface HealthStatus {
+export interface HealthCheckResponse {
   status: string;
 }
 
@@ -31,6 +31,7 @@ export interface Form {
   userId: string;
   title: string;
   description?: string | null;
+  featureImageUrl?: string | null;
   slug: string;
   originalLanguage: string;
   preferredLanguage?: string | null;
@@ -82,6 +83,8 @@ export type SubmissionTranslatedResponsesJson = {
   [key: string]: unknown;
 } | null;
 
+export type SubmissionSentimentAnalysisJson = { [key: string]: unknown } | null;
+
 export type SubmissionTranslationStatus =
   (typeof SubmissionTranslationStatus)[keyof typeof SubmissionTranslationStatus];
 
@@ -97,6 +100,7 @@ export interface Submission {
   respondentLanguage: string;
   rawResponsesJson: SubmissionRawResponsesJson;
   translatedResponsesJson?: SubmissionTranslatedResponsesJson;
+  sentimentAnalysisJson?: SubmissionSentimentAnalysisJson;
   translationStatus: SubmissionTranslationStatus;
   submittedAt: string;
 }
@@ -115,6 +119,7 @@ export interface FormWithFields {
   userId: string;
   title: string;
   description?: string | null;
+  featureImageUrl?: string | null;
   slug: string;
   originalLanguage: string;
   preferredLanguage?: string | null;
@@ -130,6 +135,7 @@ export interface PublicForm {
   id: string;
   title: string;
   description?: string | null;
+  featureImageUrl?: string | null;
   slug: string;
   originalLanguage: string;
   supportedLanguages: string[];
@@ -172,6 +178,12 @@ export interface DashboardSummary {
   mostActiveForm?: DashboardSummaryMostActiveForm;
 }
 
+export interface UpdateMeBody {
+  /** @minLength 6 */
+  password?: string;
+  preferredLanguage?: string | null;
+}
+
 export type CreateFieldBodyFieldType =
   (typeof CreateFieldBodyFieldType)[keyof typeof CreateFieldBodyFieldType];
 
@@ -198,6 +210,7 @@ export interface CreateFieldBody {
 export interface CreateFormBody {
   title: string;
   description?: string | null;
+  featureImageUrl?: string | null;
   originalLanguage: string;
   fields: CreateFieldBody[];
 }
@@ -214,6 +227,7 @@ export const UpdateFormBodyStatus = {
 export interface UpdateFormBody {
   title?: string;
   description?: string | null;
+  featureImageUrl?: string | null;
   status?: UpdateFormBodyStatus;
   preferredLanguage?: string | null;
   supportedLanguages?: string[];
@@ -259,6 +273,7 @@ export interface GenerateFormBody {
 export type GenerateFormResultForm = {
   title: string;
   description?: string | null;
+  featureImageUrl?: string | null;
   fields: CreateFieldBody[];
 };
 
@@ -273,6 +288,7 @@ export interface FormTemplate {
   userId: string;
   title: string;
   description?: string | null;
+  featureImageUrl?: string | null;
   category: string;
   isPublic: boolean;
   useCount: number;
@@ -284,14 +300,26 @@ export interface FormTemplate {
 export interface SaveTemplateBody {
   title: string;
   description?: string | null;
+  featureImageUrl?: string | null;
   category?: string;
   isPublic: boolean;
 }
 
-export type ListTemplatesParams = {
-  category?: string;
+export type GenerateFormSentimentSummary200 = {
+  summary?: string;
 };
 
 export type ReorderFields200 = {
-  success: boolean;
+  success?: boolean;
+};
+
+export type ListTemplatesParams = {
+  /**
+   * Optional category filter
+   */
+  category?: string;
+};
+
+export type SubmitForm201 = {
+  id?: string;
 };

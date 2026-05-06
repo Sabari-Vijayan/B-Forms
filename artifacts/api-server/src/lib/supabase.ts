@@ -14,10 +14,12 @@ export function isSupabaseConfigured(): boolean {
 
 export function createSupabaseClient(accessToken?: string) {
   if (!isSupabaseConfigured()) {
-    throw new Error(
-      "Supabase is not configured. Set SUPABASE_URL, " +
-      "SUPABASE_ANON_KEY, and SUPABASE_SERVICE_ROLE_KEY in your .env file."
-    );
+    const missing = [];
+    if (!supabaseUrl.startsWith("https://")) missing.push("SUPABASE_URL (must start with https://)");
+    if (!supabaseAnonKey) missing.push("SUPABASE_ANON_KEY");
+    if (!supabaseServiceKey) missing.push("SUPABASE_SERVICE_ROLE_KEY");
+    
+    throw new Error(`Supabase is not configured. Missing: ${missing.join(", ")}`);
   }
   return createClient(supabaseUrl, supabaseAnonKey, {
     auth: { persistSession: false },
@@ -29,10 +31,7 @@ export function createSupabaseClient(accessToken?: string) {
 
 export function createAdminClient() {
   if (!isSupabaseConfigured()) {
-    throw new Error(
-      "Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL, " +
-      "NEXT_PUBLIC_SUPABASE_ANON_KEY, and SUPABASE_SERVICE_ROLE_KEY secrets."
-    );
+    throw new Error("Supabase is not configured. Ensure SUPABASE_URL, SUPABASE_ANON_KEY, and SUPABASE_SERVICE_ROLE_KEY are set.");
   }
   return createClient(supabaseUrl, supabaseServiceKey, {
     auth: { persistSession: false },

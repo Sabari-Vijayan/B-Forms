@@ -29,7 +29,7 @@ export default function Templates() {
 
   const { data: templates, isLoading } = useListTemplates(
     category ? { category } : {},
-    { query: { staleTime: 300_000 } } // 5 minutes cache for templates
+    { query: { staleTime: 300_000, queryKey: category ? [`/api/templates`, { category }] : [`/api/templates`] } } // 5 minutes cache for templates
   );
 
   const useTemplate = useUseTemplate();
@@ -130,11 +130,25 @@ export default function Templates() {
               >
                 {/* Category badge */}
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs uppercase tracking-wide font-medium text-muted-foreground border border-border px-2 py-0.5">
+                  <span className="text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
                     {tmpl.category}
                   </span>
                   {!tmpl.isPublic && (
-                    <span className="text-xs uppercase tracking-wide font-medium text-muted-foreground">Private</span>
+                    <span className="text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700">Private</span>
+                  )}
+                </div>
+
+                <div className="aspect-[21/9] w-full overflow-hidden rounded-md border bg-muted/50 relative group-hover:border-foreground/20 transition-colors">
+                  {tmpl.featureImageUrl ? (
+                    <img 
+                      src={tmpl.featureImageUrl} 
+                      alt={tmpl.title} 
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-muted-foreground/30">
+                      <LayoutTemplate className="w-8 h-8 opacity-20" />
+                    </div>
                   )}
                 </div>
 

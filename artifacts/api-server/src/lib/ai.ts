@@ -2,12 +2,28 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
+const LANGUAGE_MAP: Record<string, string> = {
+  en: "English",
+  es: "Spanish",
+  fr: "French",
+  de: "German",
+  hi: "Hindi",
+  ml: "Malayalam",
+  ta: "Tamil",
+  ar: "Arabic",
+  zh: "Chinese",
+  pt: "Portuguese",
+  ja: "Japanese",
+  ko: "Korean",
+};
+
 const GENERATE_SYSTEM_PROMPT = `You are a form designer. Given a user's prompt, generate a form in JSON.
 
 Return ONLY valid JSON matching this exact schema:
 {
   "title": "string",
   "description": "string (optional)",
+  "feature_image_url": "string (optional, suggest a relevant Unsplash URL)",
   "fields": [
     {
       "label": "string",
@@ -38,14 +54,17 @@ export interface AIGeneratedField {
 export interface AIGeneratedForm {
   title: string;
   description?: string;
+  feature_image_url?: string;
   fields: AIGeneratedField[];
 }
 
-export async function generateFormFromPrompt(prompt: string, targetLanguage?: string): Promise<AIGeneratedForm> {
+export async function generateFormFromPrompt(prompt: string, targetLanguageCode?: string): Promise<AIGeneratedForm> {
+  const targetLanguage = targetLanguageCode ? LANGUAGE_MAP[targetLanguageCode] || targetLanguageCode : null;
+  
   const systemInstruction = targetLanguage
     ? GENERATE_SYSTEM_PROMPT.replace(
         "- The title and all labels must be in the same language as the user's prompt.",
-        `- You MUST generate the title, description, labels, placeholders, and all option values in ${targetLanguage} language, regardless of the language the prompt is written in.`
+        `- You MUST generate the title, description, labels, placeholders, and all option values in ${targetLanguage} language, regardless of the language the prompt is written in. Do not mix languages.`
       )
     : GENERATE_SYSTEM_PROMPT;
 
@@ -58,11 +77,19 @@ export async function generateFormFromPrompt(prompt: string, targetLanguage?: st
   const result = await model.generateContent(prompt);
   const text = result.response.text();
 
-  let parsed: unknown;
+  let parsed: any;
   try {
     parsed = JSON.parse(text);
   } catch {
     throw new Error("AI returned invalid JSON");
+  }
+
+  // Ensure field_type matches expected enum
+  if (parsed.fields) {
+    parsed.fields = parsed.fields.map((f: any) => ({
+      ...f,
+      field_type: f.field_type?.replace(" ", "_").toLowerCase() || "short_text"
+    }));
   }
 
   return parsed as AIGeneratedForm;
@@ -72,9 +99,12 @@ export async function translateFields(
   formTitle: string,
   formDescription: string | null | undefined,
   fields: Array<{ id: string; label: string; placeholder?: string | null; options?: string[] | null }>,
-  targetLanguage: string,
-  sourceLanguage: string
+  targetLanguageCode: string,
+  sourceLanguageCode: string
 ): Promise<Record<string, string>> {
+  const targetLanguage = LANGUAGE_MAP[targetLanguageCode] || targetLanguageCode;
+  const sourceLanguage = LANGUAGE_MAP[sourceLanguageCode] || sourceLanguageCode;
+
   const model = genAI.getGenerativeModel({
     model: "gemini-2.5-flash-lite",
     generationConfig: { responseMimeType: "application/json" },
@@ -119,10 +149,13 @@ ${JSON.stringify(input, null, 2)}`;
 
 export async function translateResponse(
   responses: Record<string, unknown>,
-  fromLanguage: string,
-  toLanguage: string
+  fromLanguageCode: string,
+  toLanguageCode: string
 ): Promise<Record<string, unknown>> {
-  if (fromLanguage === toLanguage) return responses;
+  if (fromLanguageCode === toLanguageCode) return responses;
+
+  const fromLanguage = LANGUAGE_MAP[fromLanguageCode] || fromLanguageCode;
+  const toLanguage = LANGUAGE_MAP[toLanguageCode] || toLanguageCode;
 
   const model = genAI.getGenerativeModel({
     model: "gemini-2.5-flash-lite",
@@ -130,8 +163,13 @@ export async function translateResponse(
   });
 
   const prompt = `Translate the values in the following JSON object from "${fromLanguage}" to "${toLanguage}".
-Do not translate the keys. Only translate string values. Leave non-string values (numbers, booleans) unchanged.
-Return only JSON.
+Do not translate the keys.
+Rules:
+- If a value is a string, translate it.
+- If a value is an array of strings, translate each string in the array.
+- Leave numbers, booleans, and null values exactly as they are.
+- Preserve the exact JSON structure.
+Return only valid JSON.
 
 Input:
 ${JSON.stringify(responses, null, 2)}`;
@@ -143,6 +181,63 @@ ${JSON.stringify(responses, null, 2)}`;
     return JSON.parse(text);
   } catch {
     return responses;
+  }
+}
+
+export async function generateSentimentSummary(
+  formTitle: string,
+  submissions: Array<{ respondentLanguage: string; responses: Record<string, unknown> }>,
+  fields: Array<{ id: string; label: string }>
+): Promise<string> {
+  const model = genAI.getGenerativeModel({
+    model: "gemini-2.5-flash-lite",
+  });
+
+  const prompt = `You are an expert data analyst. I will provide you with a list of responses to a form titled "${formTitle}".
+Analyze the overall sentiment and provide a concise, professional summary (2-3 paragraphs).
+Focus on:
+1. The general tone of the feedback.
+2. Key positive points or common complaints.
+3. Notable patterns across different languages if applicable.
+
+Format the output in professional, empathetic language. Do not use markdown headers, just plain text with paragraphs.
+
+Data:
+${JSON.stringify(submissions.slice(0, 50), null, 2)}
+Fields:
+${JSON.stringify(fields, null, 2)}`;
+
+  const result = await model.generateContent(prompt);
+  return result.response.text();
+}
+
+export async function analyzeSentiment(
+  responses: Record<string, unknown>,
+  languageCode: string
+): Promise<Record<string, string>> {
+  const language = LANGUAGE_MAP[languageCode] || languageCode;
+
+  const model = genAI.getGenerativeModel({
+    model: "gemini-2.5-flash-lite",
+    generationConfig: { responseMimeType: "application/json" },
+  });
+
+  const prompt = `Analyze the sentiment of each text value in the following JSON object.
+The text is in "${language}".
+For each key, provide a sentiment label: "positive", "neutral", "negative", or "mixed".
+If a value is not text (like a number or choice), return "neutral".
+Return only valid JSON where the keys match the input and values are the sentiment labels.
+
+Input:
+${JSON.stringify(responses, null, 2)}`;
+
+  const result = await model.generateContent(prompt);
+  const text = result.response.text();
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {};
   }
 }
 
@@ -159,6 +254,8 @@ export function detectLanguage(text: string): string {
   if (/\b(el|la|los|las|un|una|es|son|para|con|del|que)\b/.test(lower)) return "es";
   if (/\b(le|la|les|un|une|des|est|sont|avec|pour)\b/.test(lower)) return "fr";
   if (/\b(der|die|das|ein|eine|ist|sind|für|mit)\b/.test(lower)) return "de";
-  if (/\b(você|está|estão|isso|esse|essa|uma|são|para|também|não|mas|quando)\b/.test(lower)) return "pt";
+  if (/\b(você|está|estão|isso|esse|essa|uma|são|para|também|não|mas|cuando)\b/.test(lower)) return "pt";
   return "en";
 }
+
+

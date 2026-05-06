@@ -162,90 +162,118 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* ── Full-width banner ── */}
-      <div className="w-full overflow-hidden border-b border-border" style={{ height: "clamp(120px, 18vw, 200px)" }}>
-        <AuthBanner />
+    <div className="min-h-screen bg-background flex flex-col lg:flex-row">
+      {/* ── Desktop Image Panel ── */}
+      <div className="hidden lg:flex lg:w-1/2 xl:w-[60%] bg-muted border-r border-border relative overflow-hidden">
+        <img 
+          src="/ChatGPT Image May 5, 2026, 03_26_51 PM.png" 
+          alt="Auth background" 
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-foreground/5 pointer-events-none" />
       </div>
 
-      {/* ── Form ── */}
-      <div className="flex-1 flex items-center justify-center p-6 py-10">
-        <div className="w-full max-w-sm">
-          {/* Logo + heading */}
-          <div className="mb-8">
-            <div className="mb-5">
-              <div className="text-[#4f86ff]">
-                <LogoIcon size={36} />
+      <div className="flex-1 flex flex-col">
+        {/* ── Mobile/Tablet Banner ── */}
+        <div className="lg:hidden w-full overflow-hidden border-b border-border" style={{ height: "clamp(120px, 18vw, 200px)" }}>
+          <AuthBanner />
+        </div>
+
+        {/* ── Form Area ── */}
+        <div className="flex-1 flex items-center justify-center p-6 py-10 lg:py-20">
+          <div className="w-full max-w-sm">
+            {/* Logo + heading */}
+            <div className="mb-8">
+              <div className="mb-5">
+                <div className="text-[#4f86ff]">
+                  <LogoIcon size={36} />
+                </div>
               </div>
+              <h1 className="text-2xl font-semibold text-foreground tracking-tight">
+                {mode === "login" ? "Welcome back" : "Create an account"}
+              </h1>
+              <p className="text-sm text-muted-foreground mt-2">
+                {mode === "login"
+                  ? "Sign in to manage your forms and view submissions"
+                  : "Sign up to start building multilingual AI-powered forms"}
+              </p>
             </div>
-            <h1 className="text-foreground tracking-tight">
-              {mode === "login" ? "Welcome back" : "Create an account"}
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              {mode === "login"
-                ? "Sign in to manage your forms"
-                : "Sign up to start building multilingual forms"}
-            </p>
+
+            {/* Form fields */}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Email Address</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="name@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                  autoFocus
+                  className="h-11 border-border focus:border-foreground focus:ring-0 bg-background"
+                />
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Password</Label>
+                  {mode === "login" && (
+                    <button type="button" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+                      Forgot password?
+                    </button>
+                  )}
+                </div>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoComplete={mode === "login" ? "current-password" : "new-password"}
+                  className="h-11 border-border focus:border-foreground focus:ring-0 bg-background"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full h-11 bg-foreground text-background text-sm font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition-all active:scale-[0.98] disabled:opacity-50 mt-4 rounded-md"
+              >
+                {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                {mode === "login" ? "Sign In" : "Get Started"}
+              </button>
+            </form>
+
+            <div className="mt-8 pt-8 border-t border-border/50 text-center">
+              <p className="text-sm text-muted-foreground">
+                {mode === "login" ? (
+                  <>
+                    New to Prompt-to-Form?{" "}
+                    <button 
+                      className="text-foreground font-medium hover:underline underline-offset-4" 
+                      onClick={() => setMode("signup")}
+                    >
+                      Create an account
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    Already have an account?{" "}
+                    <button 
+                      className="text-foreground font-medium hover:underline underline-offset-4" 
+                      onClick={() => setMode("login")}
+                    >
+                      Sign back in
+                    </button>
+                  </>
+                )}
+              </p>
+            </div>
           </div>
-
-          {/* Form fields */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="name@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoComplete="email"
-                autoFocus
-                className="h-10 border-border focus:border-foreground focus:ring-0 bg-background"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="password" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete={mode === "login" ? "current-password" : "new-password"}
-                className="h-10 border-border focus:border-foreground focus:ring-0 bg-background"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full h-10 bg-foreground text-background text-sm font-medium flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50 mt-2"
-            >
-              {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-              {mode === "login" ? "Sign In" : "Create Account"}
-            </button>
-          </form>
-
-          <p className="mt-6 text-center text-sm text-muted-foreground">
-            {mode === "login" ? (
-              <>
-                Don't have an account?{" "}
-                <button className="text-foreground underline underline-offset-2" onClick={() => setMode("signup")}>
-                  Sign up
-                </button>
-              </>
-            ) : (
-              <>
-                Already have an account?{" "}
-                <button className="text-foreground underline underline-offset-2" onClick={() => setMode("login")}>
-                  Sign in
-                </button>
-              </>
-            )}
-          </p>
         </div>
       </div>
     </div>
   );
 }
+

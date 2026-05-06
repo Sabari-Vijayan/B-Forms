@@ -53,6 +53,7 @@ router.get("/public/forms/:slug", async (req, res) => {
     id: form.id,
     title: form.title,
     description: form.description,
+    featureImageUrl: form.feature_image_url,
     slug: form.slug,
     originalLanguage: form.original_language,
     supportedLanguages: form.supported_languages || [],

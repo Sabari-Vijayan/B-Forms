@@ -16,7 +16,7 @@ import { SUPPORTED_LANGUAGES } from "@/lib/constants";
 export default function FormShare() {
   const params = useParams();
   const id = params.id as string;
-  const { data: form, isLoading } = useGetForm(id, { query: { enabled: !!id } });
+  const { data: form, isLoading } = useGetForm(id, { query: { enabled: !!id, queryKey: [`/api/forms/${id}`] } });
   const publishForm = usePublishForm();
   
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);

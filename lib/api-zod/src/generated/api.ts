@@ -3,19 +3,19 @@
  * Do not edit manually.
  * Api
  * Prompt-to-Form API
- * OpenAPI spec version: 0.1.0
+ * OpenAPI spec version: 1.0.0
  */
 import * as zod from "zod";
 
 /**
- * @summary Health check
+ * @summary Check API health
  */
-export const HealthCheckResponse = zod.object({
+export const GetHealthResponse = zod.object({
   status: zod.string(),
 });
 
 /**
- * @summary Get current user
+ * @summary Get current authenticated user
  */
 export const GetMeResponse = zod.object({
   id: zod.string(),
@@ -23,13 +23,29 @@ export const GetMeResponse = zod.object({
 });
 
 /**
- * @summary List all forms for the current user
+ * @summary Update user profile
+ */
+export const updateMeBodyPasswordMin = 6;
+
+export const UpdateMeBody = zod.object({
+  password: zod.string().min(updateMeBodyPasswordMin).optional(),
+  preferredLanguage: zod.string().nullish(),
+});
+
+export const UpdateMeResponse = zod.object({
+  id: zod.string(),
+  email: zod.string(),
+});
+
+/**
+ * @summary List user's forms
  */
 export const ListFormsResponseItem = zod.object({
   id: zod.string(),
   userId: zod.string(),
   title: zod.string(),
   description: zod.string().nullish(),
+  featureImageUrl: zod.string().nullish(),
   slug: zod.string(),
   originalLanguage: zod.string(),
   preferredLanguage: zod.string().nullish(),
@@ -47,6 +63,7 @@ export const ListFormsResponse = zod.array(ListFormsResponseItem);
 export const CreateFormBody = zod.object({
   title: zod.string(),
   description: zod.string().nullish(),
+  featureImageUrl: zod.string().nullish(),
   originalLanguage: zod.string(),
   fields: zod.array(
     zod.object({
@@ -70,7 +87,7 @@ export const CreateFormBody = zod.object({
 });
 
 /**
- * @summary Get a form by ID
+ * @summary Get form details
  */
 export const GetFormParams = zod.object({
   id: zod.coerce.string(),
@@ -81,6 +98,7 @@ export const GetFormResponse = zod.object({
   userId: zod.string(),
   title: zod.string(),
   description: zod.string().nullish(),
+  featureImageUrl: zod.string().nullish(),
   slug: zod.string(),
   originalLanguage: zod.string(),
   preferredLanguage: zod.string().nullish(),
@@ -113,7 +131,7 @@ export const GetFormResponse = zod.object({
 });
 
 /**
- * @summary Update a form
+ * @summary Update form settings
  */
 export const UpdateFormParams = zod.object({
   id: zod.coerce.string(),
@@ -122,6 +140,7 @@ export const UpdateFormParams = zod.object({
 export const UpdateFormBody = zod.object({
   title: zod.string().optional(),
   description: zod.string().nullish(),
+  featureImageUrl: zod.string().nullish(),
   status: zod.enum(["draft", "published", "closed"]).optional(),
   preferredLanguage: zod.string().nullish(),
   supportedLanguages: zod.array(zod.string()).optional(),
@@ -134,6 +153,7 @@ export const UpdateFormResponse = zod.object({
   userId: zod.string(),
   title: zod.string(),
   description: zod.string().nullish(),
+  featureImageUrl: zod.string().nullish(),
   slug: zod.string(),
   originalLanguage: zod.string(),
   preferredLanguage: zod.string().nullish(),
@@ -152,14 +172,14 @@ export const DeleteFormParams = zod.object({
 });
 
 /**
- * @summary Duplicate a form (copies fields, resets to draft)
+ * @summary Duplicate an existing form
  */
 export const DuplicateFormParams = zod.object({
   id: zod.coerce.string(),
 });
 
 /**
- * @summary Publish a form and trigger translation
+ * @summary Publish form and generate translations
  */
 export const PublishFormParams = zod.object({
   id: zod.coerce.string(),
@@ -177,6 +197,7 @@ export const PublishFormResponse = zod.object({
     userId: zod.string(),
     title: zod.string(),
     description: zod.string().nullish(),
+    featureImageUrl: zod.string().nullish(),
     slug: zod.string(),
     originalLanguage: zod.string(),
     preferredLanguage: zod.string().nullish(),
@@ -189,98 +210,68 @@ export const PublishFormResponse = zod.object({
 });
 
 /**
- * @summary Browse public templates (no auth required)
+ * @summary Generate AI sentiment analysis summary for a form
  */
-export const ListTemplatesQueryParams = zod.object({
-  category: zod.coerce.string().optional(),
-});
-
-export const ListTemplatesResponseItem = zod.object({
-  id: zod.string(),
-  formId: zod.string(),
-  userId: zod.string(),
-  title: zod.string(),
-  description: zod.string().nullish(),
-  category: zod.string(),
-  isPublic: zod.boolean(),
-  useCount: zod.number(),
-  createdAt: zod.string(),
-  fieldCount: zod.number(),
-  fields: zod
-    .array(
-      zod.object({
-        id: zod.string(),
-        formId: zod.string(),
-        orderIndex: zod.number(),
-        fieldType: zod.enum([
-          "short_text",
-          "long_text",
-          "single_choice",
-          "multi_choice",
-          "rating",
-          "date",
-          "email",
-          "phone",
-        ]),
-        label: zod.string(),
-        placeholder: zod.string().nullish(),
-        isRequired: zod.boolean(),
-        optionsJson: zod.array(zod.string()).nullish(),
-      }),
-    )
-    .optional(),
-});
-export const ListTemplatesResponse = zod.array(ListTemplatesResponseItem);
-
-/**
- * @summary List templates owned by current user
- */
-export const ListMyTemplatesResponseItem = zod.object({
-  id: zod.string(),
-  formId: zod.string(),
-  userId: zod.string(),
-  title: zod.string(),
-  description: zod.string().nullish(),
-  category: zod.string(),
-  isPublic: zod.boolean(),
-  useCount: zod.number(),
-  createdAt: zod.string(),
-  fieldCount: zod.number(),
-  fields: zod
-    .array(
-      zod.object({
-        id: zod.string(),
-        formId: zod.string(),
-        orderIndex: zod.number(),
-        fieldType: zod.enum([
-          "short_text",
-          "long_text",
-          "single_choice",
-          "multi_choice",
-          "rating",
-          "date",
-          "email",
-          "phone",
-        ]),
-        label: zod.string(),
-        placeholder: zod.string().nullish(),
-        isRequired: zod.boolean(),
-        optionsJson: zod.array(zod.string()).nullish(),
-      }),
-    )
-    .optional(),
-});
-export const ListMyTemplatesResponse = zod.array(ListMyTemplatesResponseItem);
-
-/**
- * @summary Copy a template into the current user's forms
- */
-export const UseTemplateParams = zod.object({
+export const GenerateFormSentimentSummaryParams = zod.object({
   id: zod.coerce.string(),
 });
 
+export const GenerateFormSentimentSummaryResponse = zod.object({
+  summary: zod.string().optional(),
+});
+
 /**
- * @summary Get the template entry for a form (if any)
+ * @summary List all submissions for a form
+ */
+export const ListSubmissionsParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const ListSubmissionsResponseItem = zod.object({
+  id: zod.string(),
+  formId: zod.string(),
+  respondentLanguage: zod.string(),
+  rawResponsesJson: zod.record(zod.string(), zod.unknown()),
+  translatedResponsesJson: zod.record(zod.string(), zod.unknown()).nullish(),
+  sentimentAnalysisJson: zod.record(zod.string(), zod.unknown()).nullish(),
+  translationStatus: zod.enum(["pending", "done", "skipped"]),
+  submittedAt: zod.string(),
+});
+export const ListSubmissionsResponse = zod.array(ListSubmissionsResponseItem);
+
+/**
+ * @summary Get submission statistics for a form
+ */
+export const GetFormStatsParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const GetFormStatsResponse = zod.object({
+  totalResponses: zod.number(),
+  languageBreakdown: zod.record(zod.string(), zod.number()),
+  recentResponses: zod.number(),
+});
+
+/**
+ * @summary List all translations for a form
+ */
+export const ListFormTranslationsParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const ListFormTranslationsResponseItem = zod.object({
+  id: zod.string(),
+  formId: zod.string(),
+  language: zod.string(),
+  translationsJson: zod.record(zod.string(), zod.unknown()),
+  generatedAt: zod.string(),
+});
+export const ListFormTranslationsResponse = zod.array(
+  ListFormTranslationsResponseItem,
+);
+
+/**
+ * @summary Get template info for a specific form
  */
 export const GetFormTemplateParams = zod.object({
   id: zod.coerce.string(),
@@ -292,6 +283,7 @@ export const GetFormTemplateResponse = zod.object({
   userId: zod.string(),
   title: zod.string(),
   description: zod.string().nullish(),
+  featureImageUrl: zod.string().nullish(),
   category: zod.string(),
   isPublic: zod.boolean(),
   useCount: zod.number(),
@@ -323,7 +315,7 @@ export const GetFormTemplateResponse = zod.object({
 });
 
 /**
- * @summary Publish or update this form as a template
+ * @summary Save form as a template
  */
 export const SaveFormTemplateParams = zod.object({
   id: zod.coerce.string(),
@@ -332,6 +324,7 @@ export const SaveFormTemplateParams = zod.object({
 export const SaveFormTemplateBody = zod.object({
   title: zod.string(),
   description: zod.string().nullish(),
+  featureImageUrl: zod.string().nullish(),
   category: zod.string().optional(),
   isPublic: zod.boolean(),
 });
@@ -342,6 +335,7 @@ export const SaveFormTemplateResponse = zod.object({
   userId: zod.string(),
   title: zod.string(),
   description: zod.string().nullish(),
+  featureImageUrl: zod.string().nullish(),
   category: zod.string(),
   isPublic: zod.boolean(),
   useCount: zod.number(),
@@ -373,14 +367,14 @@ export const SaveFormTemplateResponse = zod.object({
 });
 
 /**
- * @summary Remove this form from the template gallery
+ * @summary Remove template status from a form
  */
 export const RemoveFormTemplateParams = zod.object({
   id: zod.coerce.string(),
 });
 
 /**
- * @summary List fields for a form
+ * @summary List all fields for a form
  */
 export const ListFormFieldsParams = zod.object({
   id: zod.coerce.string(),
@@ -408,7 +402,7 @@ export const ListFormFieldsResponseItem = zod.object({
 export const ListFormFieldsResponse = zod.array(ListFormFieldsResponseItem);
 
 /**
- * @summary Create a field
+ * @summary Add a new field to a form
  */
 export const CreateFormFieldParams = zod.object({
   id: zod.coerce.string(),
@@ -433,7 +427,7 @@ export const CreateFormFieldBody = zod.object({
 });
 
 /**
- * @summary Reorder fields
+ * @summary Reorder fields in a form
  */
 export const ReorderFieldsParams = zod.object({
   id: zod.coerce.string(),
@@ -444,11 +438,11 @@ export const ReorderFieldsBody = zod.object({
 });
 
 export const ReorderFieldsResponse = zod.object({
-  success: zod.boolean(),
+  success: zod.boolean().optional(),
 });
 
 /**
- * @summary Update a form field
+ * @summary Update a specific field
  */
 export const UpdateFormFieldParams = zod.object({
   id: zod.coerce.string(),
@@ -484,7 +478,7 @@ export const UpdateFormFieldResponse = zod.object({
 });
 
 /**
- * @summary Delete a form field
+ * @summary Delete a field
  */
 export const DeleteFormFieldParams = zod.object({
   id: zod.coerce.string(),
@@ -492,56 +486,100 @@ export const DeleteFormFieldParams = zod.object({
 });
 
 /**
- * @summary List submissions for a form
+ * @summary List available templates
  */
-export const ListSubmissionsParams = zod.object({
-  id: zod.coerce.string(),
+export const ListTemplatesQueryParams = zod.object({
+  category: zod.coerce.string().optional().describe("Optional category filter"),
 });
 
-export const ListSubmissionsResponseItem = zod.object({
+export const ListTemplatesResponseItem = zod.object({
   id: zod.string(),
   formId: zod.string(),
-  respondentLanguage: zod.string(),
-  rawResponsesJson: zod.record(zod.string(), zod.unknown()),
-  translatedResponsesJson: zod.record(zod.string(), zod.unknown()).nullish(),
-  translationStatus: zod.enum(["pending", "done", "skipped"]),
-  submittedAt: zod.string(),
+  userId: zod.string(),
+  title: zod.string(),
+  description: zod.string().nullish(),
+  featureImageUrl: zod.string().nullish(),
+  category: zod.string(),
+  isPublic: zod.boolean(),
+  useCount: zod.number(),
+  createdAt: zod.string(),
+  fieldCount: zod.number(),
+  fields: zod
+    .array(
+      zod.object({
+        id: zod.string(),
+        formId: zod.string(),
+        orderIndex: zod.number(),
+        fieldType: zod.enum([
+          "short_text",
+          "long_text",
+          "single_choice",
+          "multi_choice",
+          "rating",
+          "date",
+          "email",
+          "phone",
+        ]),
+        label: zod.string(),
+        placeholder: zod.string().nullish(),
+        isRequired: zod.boolean(),
+        optionsJson: zod.array(zod.string()).nullish(),
+      }),
+    )
+    .optional(),
 });
-export const ListSubmissionsResponse = zod.array(ListSubmissionsResponseItem);
+export const ListTemplatesResponse = zod.array(ListTemplatesResponseItem);
 
 /**
- * @summary Get submission stats for a form
+ * @summary List current user's templates
  */
-export const GetFormStatsParams = zod.object({
-  id: zod.coerce.string(),
-});
-
-export const GetFormStatsResponse = zod.object({
-  totalResponses: zod.number(),
-  languageBreakdown: zod.record(zod.string(), zod.number()),
-  recentResponses: zod.number(),
-});
-
-/**
- * @summary List translations for a form
- */
-export const ListFormTranslationsParams = zod.object({
-  id: zod.coerce.string(),
-});
-
-export const ListFormTranslationsResponseItem = zod.object({
+export const ListMyTemplatesResponseItem = zod.object({
   id: zod.string(),
   formId: zod.string(),
-  language: zod.string(),
-  translationsJson: zod.record(zod.string(), zod.unknown()),
-  generatedAt: zod.string(),
+  userId: zod.string(),
+  title: zod.string(),
+  description: zod.string().nullish(),
+  featureImageUrl: zod.string().nullish(),
+  category: zod.string(),
+  isPublic: zod.boolean(),
+  useCount: zod.number(),
+  createdAt: zod.string(),
+  fieldCount: zod.number(),
+  fields: zod
+    .array(
+      zod.object({
+        id: zod.string(),
+        formId: zod.string(),
+        orderIndex: zod.number(),
+        fieldType: zod.enum([
+          "short_text",
+          "long_text",
+          "single_choice",
+          "multi_choice",
+          "rating",
+          "date",
+          "email",
+          "phone",
+        ]),
+        label: zod.string(),
+        placeholder: zod.string().nullish(),
+        isRequired: zod.boolean(),
+        optionsJson: zod.array(zod.string()).nullish(),
+      }),
+    )
+    .optional(),
 });
-export const ListFormTranslationsResponse = zod.array(
-  ListFormTranslationsResponseItem,
-);
+export const ListMyTemplatesResponse = zod.array(ListMyTemplatesResponseItem);
 
 /**
- * @summary Get a published form by slug (public, no auth required)
+ * @summary Create a new form from a template
+ */
+export const UseTemplateParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+/**
+ * @summary Get a published form by slug
  */
 export const GetPublicFormParams = zod.object({
   slug: zod.coerce.string(),
@@ -551,6 +589,7 @@ export const GetPublicFormResponse = zod.object({
   id: zod.string(),
   title: zod.string(),
   description: zod.string().nullish(),
+  featureImageUrl: zod.string().nullish(),
   slug: zod.string(),
   originalLanguage: zod.string(),
   supportedLanguages: zod.array(zod.string()),
@@ -587,7 +626,7 @@ export const GetPublicFormResponse = zod.object({
 });
 
 /**
- * @summary Submit a response to a public form
+ * @summary Submit a form response
  */
 export const SubmitFormParams = zod.object({
   slug: zod.coerce.string(),
@@ -599,7 +638,7 @@ export const SubmitFormBody = zod.object({
 });
 
 /**
- * @summary Generate a form from a natural language prompt
+ * @summary Generate a form structure from a prompt
  */
 export const GenerateFormBody = zod.object({
   prompt: zod.string(),
@@ -615,6 +654,7 @@ export const GenerateFormResponse = zod.object({
   form: zod.object({
     title: zod.string(),
     description: zod.string().nullish(),
+    featureImageUrl: zod.string().nullish(),
     fields: zod.array(
       zod.object({
         fieldType: zod.enum([
@@ -652,6 +692,7 @@ export const GetDashboardSummaryResponse = zod.object({
       userId: zod.string(),
       title: zod.string(),
       description: zod.string().nullish(),
+      featureImageUrl: zod.string().nullish(),
       slug: zod.string(),
       originalLanguage: zod.string(),
       preferredLanguage: zod.string().nullish(),
