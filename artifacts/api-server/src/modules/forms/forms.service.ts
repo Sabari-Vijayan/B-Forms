@@ -1,18 +1,14 @@
 import { FormsSql } from "./forms.sql.js";
 import { FormsWorker } from "./forms.worker.js";
 import { generateSlug } from "../../lib/nanoid.js";
-import { FieldsSql } from "../fields/fields.sql.js";
 import { SubmissionsSql } from "../submissions/submissions.sql.js";
 import { generateSentimentSummary } from "../../lib/ai.js";
 
 export const FormsService = {
-  // ... (existing methods)
-
   async generateFormSentimentSummary(accessToken: string, formId: string) {
-    const { data: form } = await FormsSql.findFormById(accessToken, formId);
+    const { data: form } = await FormsSql.findFormById(formId);
     if (!form) throw new Error("Form not found");
 
-    const { data: fields } = await FieldsSql.getFieldsByFormId(accessToken, formId);
     const { data: submissions } = await SubmissionsSql.getSubmissionsByFormId(accessToken, formId);
 
     if (!submissions || submissions.length === 0) {
@@ -24,16 +20,17 @@ export const FormsService = {
       responses: s.translated_responses_json || s.raw_responses_json
     }));
 
-    const cleanedFields = (fields || []).map(f => ({
-      id: f.id,
-      label: f.label
+    const document = form.document_json;
+    const cleanedFields = (document.items || []).map((item: any) => ({
+      id: item.itemId,
+      label: item.title
     }));
 
     return await generateSentimentSummary(form.title, cleanedSubmissions, cleanedFields);
   },
 
   async getUserDashboard(accessToken: string, userId: string) {
-    const { data, error } = await FormsSql.getFormsByUserId(accessToken, userId);
+    const { data, error } = await FormsSql.getFormsByUserId(userId);
     if (error) throw error;
 
     return (data || []).map((f) => ({
@@ -136,12 +133,16 @@ export const FormsService = {
   },
 
   async getFormDetail(accessToken: string, formId: string, userId: string) {
-    const { data: form, error: fError } = await FormsSql.findFormById(accessToken, formId);
+    const { data: form, error: fError } = await FormsSql.findFormById(formId);
     if (fError || !form || form.user_id !== userId) {
+      logger.error({ 
+        formId, 
+        userId, 
+        foundUserId: form?.user_id, 
+        error: fError?.message 
+      }, "Form not found or access denied");
       return { data: null, error: new Error("Form not found") };
     }
-
-    const { data: fields } = await FieldsSql.getFieldsByFormId(accessToken, formId);
 
     return {
       data: {
@@ -158,16 +159,7 @@ export const FormsService = {
         responseLimit: form.response_limit,
         closesAt: form.closes_at,
         createdAt: form.created_at,
-        fields: (fields || []).map((f) => ({
-          id: f.id,
-          formId: f.form_id,
-          orderIndex: f.order_index,
-          fieldType: f.field_type,
-          label: f.label,
-          placeholder: f.placeholder,
-          isRequired: f.is_required,
-          optionsJson: f.options_json,
-        })),
+        documentJson: form.document_json,
       },
       error: null
     };
@@ -179,8 +171,14 @@ export const FormsService = {
     return {
       data: {
         id: data.id,
+        title: data.title,
+        description: data.description,
+        featureImageUrl: data.feature_image_url,
+        slug: data.slug,
         originalLanguage: data.original_language,
-        preferredLanguage: data.preferred_language ?? null,
+        preferredLanguage: data.preferred_language || null,
+        supportedLanguages: data.supported_languages || [],
+        documentJson: data.document_json,
         status: data.status,
       },
       error: null
@@ -188,7 +186,7 @@ export const FormsService = {
   },
 
   async createManualForm(accessToken: string, userId: string, body: any) {
-    const { title, description, featureImageUrl, originalLanguage, fields } = body;
+    const { title, description, featureImageUrl, originalLanguage, documentJson } = body;
     const slug = generateSlug();
 
     const { data: form, error: formError } = await FormsSql.createForm({
@@ -199,26 +197,19 @@ export const FormsService = {
       slug,
       original_language: originalLanguage,
       status: "draft",
+      document_json: documentJson,
     });
 
     if (formError) throw formError;
 
-    // If fields are provided (e.g. from AI generation), create them
-    if (fields && Array.isArray(fields)) {
-      for (const f of fields) {
-        await FieldsSql.createField(accessToken, {
-          form_id: form.id,
-          order_index: f.orderIndex ?? 0,
-          field_type: f.fieldType,
-          label: f.label,
-          placeholder: f.placeholder,
-          is_required: f.isRequired ?? false,
-          options_json: f.optionsJson,
-        });
-      }
-    }
-
-    return form;
+    return {
+      ...form,
+      userId: form.user_id,
+      featureImageUrl: form.feature_image_url,
+      originalLanguage: form.original_language,
+      documentJson: form.document_json,
+      createdAt: form.created_at
+    };
   },
 
   async updateForm(accessToken: string, formId: string, userId: string, updates: any) {
@@ -245,8 +236,12 @@ export const FormsService = {
       dbUpdates.closes_at = updates.closesAt;
       delete dbUpdates.closesAt;
     }
+    if (updates.documentJson !== undefined) {
+      dbUpdates.document_json = updates.documentJson;
+      delete dbUpdates.documentJson;
+    }
 
-    const { data, error } = await FormsSql.updateForm(accessToken, formId, userId, dbUpdates);
+    const { data, error } = await FormsSql.updateForm(formId, userId, dbUpdates);
     if (error) throw error;
     
     // Map back to camelCase for the response
@@ -263,18 +258,17 @@ export const FormsService = {
       supportedLanguages: data.supported_languages || [],
       responseLimit: data.response_limit,
       closesAt: data.closes_at,
+      documentJson: data.document_json,
       createdAt: data.created_at,
     };
   },
-
   async deleteForm(accessToken: string, formId: string, userId: string) {
-    const { error } = await FormsSql.deleteForm(accessToken, formId, userId);
+    const { error } = await FormsSql.deleteForm(formId, userId);
     if (error) throw error;
-    return true;
   },
 
   async duplicateForm(accessToken: string, formId: string, userId: string) {
-    const { data: source } = await FormsSql.findFormById(accessToken, formId);
+    const { data: source } = await FormsSql.findFormById(formId);
     if (!source || source.user_id !== userId) throw new Error("Form not found");
 
     const slug = generateSlug();
@@ -286,45 +280,29 @@ export const FormsService = {
       slug,
       original_language: source.original_language,
       status: "draft",
+      document_json: source.document_json,
     });
 
     if (formErr) throw formErr;
-
-    const sourceFields = source.form_fields || [];
-    if (sourceFields.length > 0) {
-      for (const f of sourceFields) {
-        await FieldsSql.createField(accessToken, {
-          form_id: newForm.id,
-          order_index: f.order_index,
-          field_type: f.field_type,
-          label: f.label,
-          placeholder: f.placeholder,
-          is_required: f.is_required,
-          options_json: f.options_json,
-        });
-      }
-    }
 
     return newForm;
   },
 
   async publishForm(accessToken: string, formId: string, userId: string, languages: string[]) {
-    // 1. Get form and fields
+    // 1. Get form detail
     const { data: form } = await this.getFormDetail(accessToken, formId, userId);
     if (!form) throw new Error("Form not found");
 
     // 2. Update status and supported languages
-    const { data: updatedForm, error: updateError } = await FormsSql.updateForm(accessToken, formId, userId, {
+    const { data: updatedForm, error: updateError } = await FormsSql.updateForm(formId, userId, {
       status: "published",
       supported_languages: languages
     });
     if (updateError) throw updateError;
 
-    // 3. Generate translations in background (simulated here)
+    // 3. Generate translations in background
     const failedLanguages: string[] = [];
     
-    // We do them sequentially for simplicity in this MVP, 
-    // but in a real app, this should be a background job.
     for (const lang of languages) {
       if (lang === form.originalLanguage) continue;
       
@@ -332,12 +310,7 @@ export const FormsService = {
         const translations = await FormsWorker.translateForm(
           form.title,
           form.description,
-          form.fields.map(f => ({
-            id: f.id,
-            label: f.label,
-            placeholder: f.placeholder,
-            options: f.optionsJson
-          })),
+          form.documentJson.items || [],
           lang,
           form.originalLanguage
         );
@@ -357,6 +330,7 @@ export const FormsService = {
         featureImageUrl: updatedForm.feature_image_url,
         supportedLanguages: updatedForm.supported_languages,
         originalLanguage: updatedForm.original_language,
+        documentJson: updatedForm.document_json,
         createdAt: updatedForm.created_at
       }
     };

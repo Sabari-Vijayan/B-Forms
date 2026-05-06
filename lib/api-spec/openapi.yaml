@@ -111,7 +111,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/FormWithFields"
+                $ref: "#/components/schemas/FormWithDocument"
         "401":
           description: Unauthorized
 
@@ -132,14 +132,14 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/FormWithFields"
+                $ref: "#/components/schemas/FormWithDocument"
         "404":
           description: Not found
 
     patch:
       operationId: updateForm
       tags: [forms]
-      summary: Update form settings
+      summary: Update form (metadata and document)
       requestBody:
         required: true
         content:
@@ -350,111 +350,6 @@ paths:
         "404":
           description: Not found
 
-  /forms/{id}/fields:
-    parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-    get:
-      operationId: listFormFields
-      tags: [fields]
-      summary: List all fields for a form
-      responses:
-        "200":
-          description: List of fields
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/FormField"
-
-    post:
-      operationId: createFormField
-      tags: [fields]
-      summary: Add a new field to a form
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateFieldBody"
-      responses:
-        "201":
-          description: Created field
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FormField"
-
-  /forms/{id}/fields/reorder:
-    parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-    patch:
-      operationId: reorderFields
-      tags: [fields]
-      summary: Reorder fields in a form
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ReorderFieldsBody"
-      responses:
-        "200":
-          description: Reordered
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-
-  /forms/{id}/fields/{fieldId}:
-    parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-      - name: fieldId
-        in: path
-        required: true
-        schema:
-          type: string
-    patch:
-      operationId: updateFormField
-      tags: [fields]
-      summary: Update a specific field
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateFieldBody"
-      responses:
-        "200":
-          description: Updated field
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FormField"
-
-    delete:
-      operationId: deleteFormField
-      tags: [fields]
-      summary: Delete a field
-      responses:
-        "204":
-          description: Deleted
-
   /templates:
     get:
       operationId: listTemplates
@@ -510,7 +405,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/FormWithFields"
+                $ref: "#/components/schemas/FormWithDocument"
         "404":
           description: Template not found
 
@@ -661,33 +556,93 @@ components:
           nullable: true
         createdAt:
           type: string
-      required: [id, userId, title, slug, originalLanguage, status, supportedLanguages, createdAt]
+        documentJson:
+          $ref: "#/components/schemas/FormDocument"
+      required: [id, userId, title, slug, originalLanguage, status, supportedLanguages, createdAt, documentJson]
 
-    FormField:
+    FormDocument:
       type: object
       properties:
-        id:
-          type: string
-        formId:
-          type: string
-        orderIndex:
-          type: integer
-        fieldType:
-          type: string
-          enum: [short_text, long_text, single_choice, multi_choice, rating, date, email, phone]
-        label:
-          type: string
-        placeholder:
-          type: string
-          nullable: true
-        isRequired:
-          type: boolean
-        optionsJson:
+        info:
+          type: object
+          properties:
+            title:
+              type: string
+            description:
+              type: string
+              nullable: true
+          required: [title]
+        items:
           type: array
           items:
-            type: string
+            $ref: "#/components/schemas/Item"
+      required: [info, items]
+
+    Item:
+      type: object
+      properties:
+        itemId:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
           nullable: true
-      required: [id, formId, orderIndex, fieldType, label, isRequired]
+        questionItem:
+          $ref: "#/components/schemas/QuestionItem"
+      required: [itemId, title]
+
+    QuestionItem:
+      type: object
+      properties:
+        question:
+          $ref: "#/components/schemas/Question"
+      required: [question]
+
+    Question:
+      type: object
+      properties:
+        questionId:
+          type: string
+        required:
+          type: boolean
+        choiceQuestion:
+          type: object
+          properties:
+            type:
+              type: string
+              enum: [RADIO, CHECKBOX, DROP_DOWN]
+            options:
+              type: array
+              items:
+                type: string
+          required: [type, options]
+        textQuestion:
+          type: object
+          properties:
+            paragraph:
+              type: boolean
+          required: [paragraph]
+        dateQuestion:
+          type: object
+        timeQuestion:
+          type: object
+        ratingQuestion:
+          type: object
+          properties:
+            maxRating:
+              type: integer
+          required: [maxRating]
+        fileQuestion:
+          type: object
+          properties:
+            maxFiles:
+              type: integer
+            acceptedTypes:
+              type: array
+              items:
+                type: string
+      required: [questionId, required]
 
     FormTranslation:
       type: object
@@ -732,7 +687,7 @@ components:
           type: string
       required: [id, formId, respondentLanguage, rawResponsesJson, translationStatus, submittedAt]
 
-    FormWithFields:
+    FormWithDocument:
       type: object
       properties:
         id:
@@ -769,11 +724,9 @@ components:
           nullable: true
         createdAt:
           type: string
-        fields:
-          type: array
-          items:
-            $ref: "#/components/schemas/FormField"
-      required: [id, userId, title, slug, originalLanguage, status, supportedLanguages, createdAt, fields]
+        documentJson:
+          $ref: "#/components/schemas/FormDocument"
+      required: [id, userId, title, slug, originalLanguage, status, supportedLanguages, createdAt, documentJson]
 
     PublicForm:
       type: object
@@ -796,15 +749,13 @@ components:
           type: array
           items:
             type: string
-        fields:
-          type: array
-          items:
-            $ref: "#/components/schemas/FormField"
+        documentJson:
+          $ref: "#/components/schemas/FormDocument"
         translations:
           type: array
           items:
             $ref: "#/components/schemas/FormTranslation"
-      required: [id, title, slug, originalLanguage, supportedLanguages, fields, translations]
+      required: [id, title, slug, originalLanguage, supportedLanguages, documentJson, translations]
 
     FormStats:
       type: object
@@ -890,11 +841,9 @@ components:
           nullable: true
         originalLanguage:
           type: string
-        fields:
-          type: array
-          items:
-            $ref: "#/components/schemas/CreateFieldBody"
-      required: [title, originalLanguage, fields]
+        documentJson:
+          $ref: "#/components/schemas/FormDocument"
+      required: [title, originalLanguage, documentJson]
 
     UpdateFormBody:
       type: object
@@ -923,6 +872,8 @@ components:
         closesAt:
           type: string
           nullable: true
+        documentJson:
+          $ref: "#/components/schemas/FormDocument"
 
     PublishFormBody:
       type: object
@@ -943,55 +894,6 @@ components:
         form:
           $ref: "#/components/schemas/Form"
       required: [success, failedLanguages, form]
-
-    CreateFieldBody:
-      type: object
-      properties:
-        fieldType:
-          type: string
-          enum: [short_text, long_text, single_choice, multi_choice, rating, date, email, phone]
-        label:
-          type: string
-        placeholder:
-          type: string
-          nullable: true
-        isRequired:
-          type: boolean
-        optionsJson:
-          type: array
-          items:
-            type: string
-          nullable: true
-        orderIndex:
-          type: integer
-      required: [fieldType, label, isRequired]
-
-    UpdateFieldBody:
-      type: object
-      properties:
-        label:
-          type: string
-        placeholder:
-          type: string
-          nullable: true
-        isRequired:
-          type: boolean
-        optionsJson:
-          type: array
-          items:
-            type: string
-          nullable: true
-        orderIndex:
-          type: integer
-
-    ReorderFieldsBody:
-      type: object
-      properties:
-        fieldIds:
-          type: array
-          items:
-            type: string
-      required: [fieldIds]
 
     SubmitFormBody:
       type: object
@@ -1017,23 +919,12 @@ components:
       type: object
       properties:
         form:
-          type: object
-          properties:
-            title:
-              type: string
-            description:
-              type: string
-              nullable: true
-            featureImageUrl:
-              type: string
-              nullable: true
-            fields:
-              type: array
-              items:
-                $ref: "#/components/schemas/CreateFieldBody"
-          required: [title, fields]
+          $ref: "#/components/schemas/FormDocument"
         detectedLanguage:
           type: string
+        featureImageUrl:
+          type: string
+          nullable: true
       required: [form, detectedLanguage]
 
     FormTemplate:
@@ -1061,13 +952,11 @@ components:
           type: integer
         createdAt:
           type: string
-        fieldCount:
+        itemCount:
           type: integer
-        fields:
-          type: array
-          items:
-            $ref: "#/components/schemas/FormField"
-      required: [id, formId, userId, title, category, isPublic, useCount, createdAt, fieldCount]
+        documentJson:
+          $ref: "#/components/schemas/FormDocument"
+      required: [id, formId, userId, title, category, isPublic, useCount, createdAt, itemCount, documentJson]
 
     SaveTemplateBody:
       type: object

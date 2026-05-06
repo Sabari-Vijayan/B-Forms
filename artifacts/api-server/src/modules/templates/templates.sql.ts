@@ -3,7 +3,7 @@ import { createAdminClient, createSupabaseClient } from "../../lib/supabase.js";
 export const TemplatesSql = {
   async listTemplates(category?: string) {
     const admin = createAdminClient();
-    let query = admin.from("form_templates").select("id, form_id, user_id, title, description, feature_image_url, category, is_public, use_count, fields_json, created_at").eq("is_public", true);
+    let query = admin.from("form_templates").select("id, form_id, user_id, title, description, feature_image_url, category, is_public, use_count, document_json, created_at").eq("is_public", true);
     if (category && category !== "all") {
       query = query.eq("category", category);
     }
@@ -12,12 +12,12 @@ export const TemplatesSql = {
 
   async getTemplateById(id: string) {
     const admin = createAdminClient();
-    return await admin.from("form_templates").select("id, form_id, user_id, title, description, feature_image_url, category, is_public, use_count, fields_json, created_at").eq("id", id).single();
+    return await admin.from("form_templates").select("id, form_id, user_id, title, description, feature_image_url, category, is_public, use_count, document_json, created_at").eq("id", id).single();
   },
 
   async getTemplateByFormId(formId: string) {
     const admin = createAdminClient();
-    return await admin.from("form_templates").select("id, form_id, user_id, title, description, feature_image_url, category, is_public, use_count, fields_json, created_at").eq("form_id", formId).single();
+    return await admin.from("form_templates").select("id, form_id, user_id, title, description, feature_image_url, category, is_public, use_count, document_json, created_at").eq("form_id", formId).single();
   },
 
   async upsertTemplate(data: any) {

@@ -306,8 +306,7 @@ export function AnalyticsDashboard({
               <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">AI Engine Online</span>
            </div>
-           <p className="text-[10px] text-muted-foreground italic">Powered by Gemini 1.5 Flash</p>
-        </div>
+           <p className="text-[10px] text-muted-foreground italic">Powered by Google Gemini</p>        </div>
       </div>
     </div>
   );

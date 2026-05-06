@@ -16,7 +16,7 @@ router.get("/templates", async (req, res) => {
 
 router.post("/templates/:id/use", requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
-    const form = await TemplatesService.useTemplate(req.params.id, req.user!.id);
+    const form = await TemplatesService.useTemplate(req.params.id as string, req.user!.id);
     res.status(201).json(form);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -25,11 +25,12 @@ router.post("/templates/:id/use", requireAuth, async (req: AuthenticatedRequest,
 
 router.post("/forms/:id/template", requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
-    const template = await TemplatesService.publishAsTemplate(req.params.id, req.user!.id, req.body);
-    res.status(201).json(template);
+    const template = await TemplatesService.publishAsTemplate(req.params.id as string, req.user!.id, req.body);
+    res.json(template);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 });
+
 
 export default router;

@@ -17,45 +17,58 @@ const LANGUAGE_MAP: Record<string, string> = {
   ko: "Korean",
 };
 
-const GENERATE_SYSTEM_PROMPT = `You are a form designer. Given a user's prompt, generate a form in JSON.
+const GENERATE_SYSTEM_PROMPT = `You are a form designer. Given a user's prompt, generate a form in a hierarchical JSON document model similar to Google Forms.
 
 Return ONLY valid JSON matching this exact schema:
 {
-  "title": "string",
-  "description": "string (optional)",
-  "feature_image_url": "string (optional, suggest a relevant Unsplash URL)",
-  "fields": [
+  "info": {
+    "title": "string",
+    "description": "string (optional)"
+  },
+  "items": [
     {
-      "label": "string",
-      "field_type": "short_text" | "long_text" | "single_choice" | "multi_choice" | "rating" | "date" | "email" | "phone",
-      "placeholder": "string (optional)",
-      "is_required": boolean,
-      "options": ["string"]
+      "itemId": "uuid (random)",
+      "title": "string (question label or header)",
+      "description": "string (placeholder or paragraph content - optional)",
+      "questionItem": {
+        "question": {
+          "questionId": "uuid (random)",
+          "required": boolean,
+          "choiceQuestion": { 
+             "type": "RADIO" | "CHECKBOX" | "DROP_DOWN",
+             "options": ["string"] 
+          },
+          "textQuestion": { "paragraph": boolean },
+          "ratingQuestion": { "maxRating": 5 },
+          "fileQuestion": { "maxFiles": 1, "acceptedTypes": ["image/*"] }
+        }
+      }
     }
-  ]
+  ],
+  "feature_image_url": "string (suggest a relevant Unsplash URL)"
 }
 
-Rules:
-- Generate 3-10 fields appropriate to the prompt.
-- Use single_choice or multi_choice for questions with discrete answers; include meaningful options.
-- Use rating for satisfaction or scale questions (options: ["1","2","3","4","5"]).
-- Use email field type for email address questions.
-- The title and all labels must be in the same language as the user's prompt.
+CRITICAL RULES:
+- If an item is purely informational (like a section header or a paragraph of text), omit the "questionItem" property.
+- Use the key "items" for questions and content blocks. NEVER use "fields".
+- Always nest question details inside questionItem.question.
+- Ensure all IDs are valid random UUIDs.
+- Return ONLY the JSON object. No markdown, no explanation.
+- Generate 3-10 items appropriate to the prompt.
+- Use choiceQuestion for questions with discrete answers (type: RADIO for single, CHECKBOX for multi).
+- Use textQuestion for short answer (paragraph: false) or long answer (paragraph: true).
+- Use ratingQuestion for satisfaction or scale questions.
+- Use fileQuestion for image or document uploads.
+- The title, description, and all item titles/descriptions must be in the same language as the user's prompt.
 - Do not add any explanation. Return only JSON.`;
 
-export interface AIGeneratedField {
-  label: string;
-  field_type: string;
-  placeholder?: string;
-  is_required: boolean;
-  options?: string[];
-}
-
 export interface AIGeneratedForm {
-  title: string;
-  description?: string;
+  info: {
+    title: string;
+    description?: string;
+  };
+  items: any[];
   feature_image_url?: string;
-  fields: AIGeneratedField[];
 }
 
 export async function generateFormFromPrompt(prompt: string, targetLanguageCode?: string): Promise<AIGeneratedForm> {
@@ -63,13 +76,13 @@ export async function generateFormFromPrompt(prompt: string, targetLanguageCode?
   
   const systemInstruction = targetLanguage
     ? GENERATE_SYSTEM_PROMPT.replace(
-        "- The title and all labels must be in the same language as the user's prompt.",
-        `- You MUST generate the title, description, labels, placeholders, and all option values in ${targetLanguage} language, regardless of the language the prompt is written in. Do not mix languages.`
+        "- The title, description, and all item titles/descriptions must be in the same language as the user's prompt.",
+        `- You MUST generate all text content (title, description, item titles, item descriptions, and all option values) in ${targetLanguage} language, regardless of the language the prompt is written in. Do not mix languages.`
       )
     : GENERATE_SYSTEM_PROMPT;
 
   const model = genAI.getGenerativeModel({
-    model: "gemini-2.5-flash-lite",
+    model: "gemini-2.5-flash",
     generationConfig: { responseMimeType: "application/json" },
     systemInstruction,
   });
@@ -77,28 +90,17 @@ export async function generateFormFromPrompt(prompt: string, targetLanguageCode?
   const result = await model.generateContent(prompt);
   const text = result.response.text();
 
-  let parsed: any;
   try {
-    parsed = JSON.parse(text);
+    return JSON.parse(text) as AIGeneratedForm;
   } catch {
     throw new Error("AI returned invalid JSON");
   }
-
-  // Ensure field_type matches expected enum
-  if (parsed.fields) {
-    parsed.fields = parsed.fields.map((f: any) => ({
-      ...f,
-      field_type: f.field_type?.replace(" ", "_").toLowerCase() || "short_text"
-    }));
-  }
-
-  return parsed as AIGeneratedForm;
 }
 
 export async function translateFields(
   formTitle: string,
   formDescription: string | null | undefined,
-  fields: Array<{ id: string; label: string; placeholder?: string | null; options?: string[] | null }>,
+  items: any[],
   targetLanguageCode: string,
   sourceLanguageCode: string
 ): Promise<Record<string, string>> {
@@ -106,12 +108,10 @@ export async function translateFields(
   const sourceLanguage = LANGUAGE_MAP[sourceLanguageCode] || sourceLanguageCode;
 
   const model = genAI.getGenerativeModel({
-    model: "gemini-2.5-flash-lite",
+    model: "gemini-2.5-flash",
     generationConfig: { responseMimeType: "application/json" },
   });
 
-  // Build a flat key→value map of every string that needs translation.
-  // The frontend reads exactly these keys from translationsJson.
   const input: Record<string, string> = {
     title: formTitle,
     submitButton: "Submit",
@@ -121,12 +121,15 @@ export async function translateFields(
   if (formDescription) {
     input.description = formDescription;
   }
-  for (const f of fields) {
-    input[`field_${f.id}_label`] = f.label;
-    if (f.placeholder) input[`field_${f.id}_placeholder`] = f.placeholder;
-    if (f.options) {
-      f.options.forEach((opt, i) => {
-        input[`field_${f.id}_option_${i}`] = opt;
+
+  for (const item of items) {
+    input[`item_${item.itemId}_title`] = item.title;
+    if (item.description) input[`item_${item.itemId}_description`] = item.description;
+    
+    const choice = item.questionItem?.question?.choiceQuestion;
+    if (choice?.options) {
+      choice.options.forEach((opt: string, i: number) => {
+        input[`item_${item.itemId}_option_${i}`] = opt;
       });
     }
   }
@@ -158,17 +161,19 @@ export async function translateResponse(
   const toLanguage = LANGUAGE_MAP[toLanguageCode] || toLanguageCode;
 
   const model = genAI.getGenerativeModel({
-    model: "gemini-2.5-flash-lite",
+    model: "gemini-2.5-flash",
     generationConfig: { responseMimeType: "application/json" },
+    systemInstruction: "You are a professional translator specialized in form responses. You must return only valid JSON.",
   });
 
   const prompt = `Translate the values in the following JSON object from "${fromLanguage}" to "${toLanguage}".
 Do not translate the keys.
 Rules:
-- If a value is a string, translate it.
+- If a value is a string, translate it completely and accurately.
 - If a value is an array of strings, translate each string in the array.
 - Leave numbers, booleans, and null values exactly as they are.
-- Preserve the exact JSON structure.
+- Preserve the exact JSON structure and keys.
+- If the text is already in the target language or is a name/proper noun that shouldn't be translated, keep it as is.
 Return only valid JSON.
 
 Input:
@@ -180,6 +185,7 @@ ${JSON.stringify(responses, null, 2)}`;
   try {
     return JSON.parse(text);
   } catch {
+    console.error("Failed to parse translated response JSON:", text);
     return responses;
   }
 }
@@ -190,7 +196,7 @@ export async function generateSentimentSummary(
   fields: Array<{ id: string; label: string }>
 ): Promise<string> {
   const model = genAI.getGenerativeModel({
-    model: "gemini-2.5-flash-lite",
+    model: "gemini-2.5-flash",
   });
 
   const prompt = `You are an expert data analyst. I will provide you with a list of responses to a form titled "${formTitle}".
@@ -218,7 +224,7 @@ export async function analyzeSentiment(
   const language = LANGUAGE_MAP[languageCode] || languageCode;
 
   const model = genAI.getGenerativeModel({
-    model: "gemini-2.5-flash-lite",
+    model: "gemini-2.5-flash",
     generationConfig: { responseMimeType: "application/json" },
   });
 
@@ -257,5 +263,3 @@ export function detectLanguage(text: string): string {
   if (/\b(você|está|estão|isso|esse|essa|uma|são|para|também|não|mas|cuando)\b/.test(lower)) return "pt";
   return "en";
 }
-
-

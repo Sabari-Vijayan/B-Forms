@@ -5,20 +5,20 @@ import { createAdminClient, createSupabaseClient } from "../../lib/supabase.js";
  * Handles all direct database interactions.
  */
 export const FormsSql = {
-  async getFormsByUserId(accessToken: string, userId: string) {
-    const supabase = createSupabaseClient(accessToken);
-    return await supabase
+  async getFormsByUserId(userId: string) {
+    const admin = createAdminClient();
+    return await admin
       .from("forms")
       .select("*")
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
   },
 
-  async findFormById(accessToken: string, id: string) {
-    const supabase = createSupabaseClient(accessToken);
-    return await supabase
+  async findFormById(id: string) {
+    const admin = createAdminClient();
+    return await admin
       .from("forms")
-      .select("*, form_fields(*)")
+      .select("*")
       .eq("id", id)
       .single();
   },
@@ -27,7 +27,7 @@ export const FormsSql = {
     const admin = createAdminClient();
     return await admin
       .from("forms")
-      .select("*, form_fields(*)")
+      .select("*")
       .eq("slug", slug)
       .eq("status", "published")
       .single();
@@ -38,9 +38,9 @@ export const FormsSql = {
     return await admin.from("forms").insert(form).select().single();
   },
 
-  async updateForm(accessToken: string, id: string, userId: string, updates: any) {
-    const supabase = createSupabaseClient(accessToken);
-    return await supabase
+  async updateForm(id: string, userId: string, updates: any) {
+    const admin = createAdminClient();
+    return await admin
       .from("forms")
       .update(updates)
       .eq("id", id)
@@ -49,9 +49,9 @@ export const FormsSql = {
       .single();
   },
 
-  async deleteForm(accessToken: string, id: string, userId: string) {
-    const supabase = createSupabaseClient(accessToken);
-    return await supabase
+  async deleteForm(id: string, userId: string) {
+    const admin = createAdminClient();
+    return await admin
       .from("forms")
       .delete()
       .eq("id", id)

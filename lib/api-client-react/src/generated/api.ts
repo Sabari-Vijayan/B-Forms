@@ -17,16 +17,14 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
-  CreateFieldBody,
   CreateFormBody,
   DashboardSummary,
   ErrorResponse,
   Form,
-  FormField,
   FormStats,
   FormTemplate,
   FormTranslation,
-  FormWithFields,
+  FormWithDocument,
   GenerateFormBody,
   GenerateFormResult,
   GenerateFormSentimentSummary200,
@@ -35,13 +33,10 @@ import type {
   PublicForm,
   PublishFormBody,
   PublishFormResult,
-  ReorderFields200,
-  ReorderFieldsBody,
   SaveTemplateBody,
   Submission,
   SubmitForm201,
   SubmitFormBody,
-  UpdateFieldBody,
   UpdateFormBody,
   UpdateMeBody,
   User,
@@ -347,8 +342,8 @@ export const getCreateFormUrl = () => {
 export const createForm = async (
   createFormBody: CreateFormBody,
   options?: RequestInit,
-): Promise<FormWithFields> => {
-  return customFetch<FormWithFields>(getCreateFormUrl(), {
+): Promise<FormWithDocument> => {
+  return customFetch<FormWithDocument>(getCreateFormUrl(), {
     ...options,
     method: "POST",
     headers: { "Content-Type": "application/json", ...options?.headers },
@@ -433,8 +428,8 @@ export const getGetFormUrl = (id: string) => {
 export const getForm = async (
   id: string,
   options?: RequestInit,
-): Promise<FormWithFields> => {
-  return customFetch<FormWithFields>(getGetFormUrl(id), {
+): Promise<FormWithDocument> => {
+  return customFetch<FormWithDocument>(getGetFormUrl(id), {
     ...options,
     method: "GET",
   });
@@ -501,7 +496,7 @@ export function useGetForm<
 }
 
 /**
- * @summary Update form settings
+ * @summary Update form (metadata and document)
  */
 export const getUpdateFormUrl = (id: string) => {
   return `/api/forms/${id}`;
@@ -565,7 +560,7 @@ export type UpdateFormMutationBody = BodyType<UpdateFormBody>;
 export type UpdateFormMutationError = ErrorType<void>;
 
 /**
- * @summary Update form settings
+ * @summary Update form (metadata and document)
  */
 export const useUpdateForm = <
   TError = ErrorType<void>,
@@ -1450,440 +1445,6 @@ export const useRemoveFormTemplate = <
 };
 
 /**
- * @summary List all fields for a form
- */
-export const getListFormFieldsUrl = (id: string) => {
-  return `/api/forms/${id}/fields`;
-};
-
-export const listFormFields = async (
-  id: string,
-  options?: RequestInit,
-): Promise<FormField[]> => {
-  return customFetch<FormField[]>(getListFormFieldsUrl(id), {
-    ...options,
-    method: "GET",
-  });
-};
-
-export const getListFormFieldsQueryKey = (id: string) => {
-  return [`/api/forms/${id}/fields`] as const;
-};
-
-export const getListFormFieldsQueryOptions = <
-  TData = Awaited<ReturnType<typeof listFormFields>>,
-  TError = ErrorType<unknown>,
->(
-  id: string,
-  options?: {
-    query?: UseQueryOptions<
-      Awaited<ReturnType<typeof listFormFields>>,
-      TError,
-      TData
-    >;
-    request?: SecondParameter<typeof customFetch>;
-  },
-) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey = queryOptions?.queryKey ?? getListFormFieldsQueryKey(id);
-
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof listFormFields>>> = ({
-    signal,
-  }) => listFormFields(id, { signal, ...requestOptions });
-
-  return {
-    queryKey,
-    queryFn,
-    enabled: !!id,
-    ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof listFormFields>>,
-    TError,
-    TData
-  > & { queryKey: QueryKey };
-};
-
-export type ListFormFieldsQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listFormFields>>
->;
-export type ListFormFieldsQueryError = ErrorType<unknown>;
-
-/**
- * @summary List all fields for a form
- */
-
-export function useListFormFields<
-  TData = Awaited<ReturnType<typeof listFormFields>>,
-  TError = ErrorType<unknown>,
->(
-  id: string,
-  options?: {
-    query?: UseQueryOptions<
-      Awaited<ReturnType<typeof listFormFields>>,
-      TError,
-      TData
-    >;
-    request?: SecondParameter<typeof customFetch>;
-  },
-): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getListFormFieldsQueryOptions(id, options);
-
-  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
-    queryKey: QueryKey;
-  };
-
-  return { ...query, queryKey: queryOptions.queryKey };
-}
-
-/**
- * @summary Add a new field to a form
- */
-export const getCreateFormFieldUrl = (id: string) => {
-  return `/api/forms/${id}/fields`;
-};
-
-export const createFormField = async (
-  id: string,
-  createFieldBody: CreateFieldBody,
-  options?: RequestInit,
-): Promise<FormField> => {
-  return customFetch<FormField>(getCreateFormFieldUrl(id), {
-    ...options,
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(createFieldBody),
-  });
-};
-
-export const getCreateFormFieldMutationOptions = <
-  TError = ErrorType<unknown>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createFormField>>,
-    TError,
-    { id: string; data: BodyType<CreateFieldBody> },
-    TContext
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof createFormField>>,
-  TError,
-  { id: string; data: BodyType<CreateFieldBody> },
-  TContext
-> => {
-  const mutationKey = ["createFormField"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation &&
-      "mutationKey" in options.mutation &&
-      options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createFormField>>,
-    { id: string; data: BodyType<CreateFieldBody> }
-  > = (props) => {
-    const { id, data } = props ?? {};
-
-    return createFormField(id, data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type CreateFormFieldMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createFormField>>
->;
-export type CreateFormFieldMutationBody = BodyType<CreateFieldBody>;
-export type CreateFormFieldMutationError = ErrorType<unknown>;
-
-/**
- * @summary Add a new field to a form
- */
-export const useCreateFormField = <
-  TError = ErrorType<unknown>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createFormField>>,
-    TError,
-    { id: string; data: BodyType<CreateFieldBody> },
-    TContext
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseMutationResult<
-  Awaited<ReturnType<typeof createFormField>>,
-  TError,
-  { id: string; data: BodyType<CreateFieldBody> },
-  TContext
-> => {
-  return useMutation(getCreateFormFieldMutationOptions(options));
-};
-
-/**
- * @summary Reorder fields in a form
- */
-export const getReorderFieldsUrl = (id: string) => {
-  return `/api/forms/${id}/fields/reorder`;
-};
-
-export const reorderFields = async (
-  id: string,
-  reorderFieldsBody: ReorderFieldsBody,
-  options?: RequestInit,
-): Promise<ReorderFields200> => {
-  return customFetch<ReorderFields200>(getReorderFieldsUrl(id), {
-    ...options,
-    method: "PATCH",
-    headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(reorderFieldsBody),
-  });
-};
-
-export const getReorderFieldsMutationOptions = <
-  TError = ErrorType<unknown>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof reorderFields>>,
-    TError,
-    { id: string; data: BodyType<ReorderFieldsBody> },
-    TContext
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof reorderFields>>,
-  TError,
-  { id: string; data: BodyType<ReorderFieldsBody> },
-  TContext
-> => {
-  const mutationKey = ["reorderFields"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation &&
-      "mutationKey" in options.mutation &&
-      options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof reorderFields>>,
-    { id: string; data: BodyType<ReorderFieldsBody> }
-  > = (props) => {
-    const { id, data } = props ?? {};
-
-    return reorderFields(id, data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type ReorderFieldsMutationResult = NonNullable<
-  Awaited<ReturnType<typeof reorderFields>>
->;
-export type ReorderFieldsMutationBody = BodyType<ReorderFieldsBody>;
-export type ReorderFieldsMutationError = ErrorType<unknown>;
-
-/**
- * @summary Reorder fields in a form
- */
-export const useReorderFields = <
-  TError = ErrorType<unknown>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof reorderFields>>,
-    TError,
-    { id: string; data: BodyType<ReorderFieldsBody> },
-    TContext
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseMutationResult<
-  Awaited<ReturnType<typeof reorderFields>>,
-  TError,
-  { id: string; data: BodyType<ReorderFieldsBody> },
-  TContext
-> => {
-  return useMutation(getReorderFieldsMutationOptions(options));
-};
-
-/**
- * @summary Update a specific field
- */
-export const getUpdateFormFieldUrl = (id: string, fieldId: string) => {
-  return `/api/forms/${id}/fields/${fieldId}`;
-};
-
-export const updateFormField = async (
-  id: string,
-  fieldId: string,
-  updateFieldBody: UpdateFieldBody,
-  options?: RequestInit,
-): Promise<FormField> => {
-  return customFetch<FormField>(getUpdateFormFieldUrl(id, fieldId), {
-    ...options,
-    method: "PATCH",
-    headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(updateFieldBody),
-  });
-};
-
-export const getUpdateFormFieldMutationOptions = <
-  TError = ErrorType<unknown>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateFormField>>,
-    TError,
-    { id: string; fieldId: string; data: BodyType<UpdateFieldBody> },
-    TContext
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof updateFormField>>,
-  TError,
-  { id: string; fieldId: string; data: BodyType<UpdateFieldBody> },
-  TContext
-> => {
-  const mutationKey = ["updateFormField"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation &&
-      "mutationKey" in options.mutation &&
-      options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateFormField>>,
-    { id: string; fieldId: string; data: BodyType<UpdateFieldBody> }
-  > = (props) => {
-    const { id, fieldId, data } = props ?? {};
-
-    return updateFormField(id, fieldId, data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type UpdateFormFieldMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateFormField>>
->;
-export type UpdateFormFieldMutationBody = BodyType<UpdateFieldBody>;
-export type UpdateFormFieldMutationError = ErrorType<unknown>;
-
-/**
- * @summary Update a specific field
- */
-export const useUpdateFormField = <
-  TError = ErrorType<unknown>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateFormField>>,
-    TError,
-    { id: string; fieldId: string; data: BodyType<UpdateFieldBody> },
-    TContext
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseMutationResult<
-  Awaited<ReturnType<typeof updateFormField>>,
-  TError,
-  { id: string; fieldId: string; data: BodyType<UpdateFieldBody> },
-  TContext
-> => {
-  return useMutation(getUpdateFormFieldMutationOptions(options));
-};
-
-/**
- * @summary Delete a field
- */
-export const getDeleteFormFieldUrl = (id: string, fieldId: string) => {
-  return `/api/forms/${id}/fields/${fieldId}`;
-};
-
-export const deleteFormField = async (
-  id: string,
-  fieldId: string,
-  options?: RequestInit,
-): Promise<void> => {
-  return customFetch<void>(getDeleteFormFieldUrl(id, fieldId), {
-    ...options,
-    method: "DELETE",
-  });
-};
-
-export const getDeleteFormFieldMutationOptions = <
-  TError = ErrorType<unknown>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteFormField>>,
-    TError,
-    { id: string; fieldId: string },
-    TContext
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteFormField>>,
-  TError,
-  { id: string; fieldId: string },
-  TContext
-> => {
-  const mutationKey = ["deleteFormField"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation &&
-      "mutationKey" in options.mutation &&
-      options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteFormField>>,
-    { id: string; fieldId: string }
-  > = (props) => {
-    const { id, fieldId } = props ?? {};
-
-    return deleteFormField(id, fieldId, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type DeleteFormFieldMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deleteFormField>>
->;
-
-export type DeleteFormFieldMutationError = ErrorType<unknown>;
-
-/**
- * @summary Delete a field
- */
-export const useDeleteFormField = <
-  TError = ErrorType<unknown>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteFormField>>,
-    TError,
-    { id: string; fieldId: string },
-    TContext
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseMutationResult<
-  Awaited<ReturnType<typeof deleteFormField>>,
-  TError,
-  { id: string; fieldId: string },
-  TContext
-> => {
-  return useMutation(getDeleteFormFieldMutationOptions(options));
-};
-
-/**
  * @summary List available templates
  */
 export const getListTemplatesUrl = (params?: ListTemplatesParams) => {
@@ -2062,8 +1623,8 @@ export const getUseTemplateUrl = (id: string) => {
 export const useTemplate = async (
   id: string,
   options?: RequestInit,
-): Promise<FormWithFields> => {
-  return customFetch<FormWithFields>(getUseTemplateUrl(id), {
+): Promise<FormWithDocument> => {
+  return customFetch<FormWithDocument>(getUseTemplateUrl(id), {
     ...options,
     method: "POST",
   });

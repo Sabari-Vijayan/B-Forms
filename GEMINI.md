@@ -61,6 +61,6 @@ Located in `artifacts/api-server/src/modules/`:
 ## 🛠️ Performance & Context Constraints
 
 1. **Surgical Reads:** Do not read entire directories. Use `grep_search` to find symbols, then `read_file` with `start_line`/`end_line`.
-2. **Model Lock:** AI operations MUST use `gemini-2.5-flash-lite`. Do not downgrade or upgrade without explicit instruction.
+2. **Model Lock:** AI operations are currently using Groq (`llama-3.3-70b-versatile`). Gemini implementation is commented out. Do not change without explicit instruction.
 3. **Implicit Relations:** If you see `Could not find a relationship` errors, the issue is usually in the PostgREST cache; fix by using explicit `.select("col1, col2")`.
 4. **Tooling:** Use `pnpm run dev` in the root to start the full stack. Backend runs on `:5000`, Frontend/Vite Proxy on `:5173`.

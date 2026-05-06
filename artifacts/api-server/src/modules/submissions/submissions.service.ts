@@ -1,5 +1,5 @@
 import { SubmissionsSql } from "./submissions.sql.js";
-import { SubmissionsWorker } from "./submissions.worker.ts";
+import { SubmissionsWorker } from "./submissions.worker.js";
 
 export const SubmissionsService = {
   async getFormSubmissions(accessToken: string, formId: string) {
@@ -35,10 +35,15 @@ export const SubmissionsService = {
   },
 
   async processSubmission(submissionId: string, responses: any, fromLang: string, toLang: string) {
+    console.log(`[SubmissionsService] Processing submission ${submissionId}: ${fromLang} -> ${toLang}`);
     try {
       let translated = null;
       if (fromLang !== toLang) {
+        console.log(`[SubmissionsService] Attempting translation for ${submissionId}`);
         translated = await SubmissionsWorker.translateSubmission(responses, fromLang, toLang);
+        console.log(`[SubmissionsService] Translation successful for ${submissionId}`);
+      } else {
+        console.log(`[SubmissionsService] Skipping translation for ${submissionId} (same language)`);
       }
 
       const sentiment = await SubmissionsWorker.analyzeSentiment(responses, fromLang);
@@ -49,7 +54,7 @@ export const SubmissionsService = {
         translation_status: fromLang === toLang ? "skipped" : "done"
       });
     } catch (err) {
-      console.error("Submission processing failed:", err);
+      console.error(`[SubmissionsService] Submission processing failed for ${submissionId}:`, err);
       await SubmissionsSql.updateSubmission(submissionId, { translation_status: "failed" });
     }
   }

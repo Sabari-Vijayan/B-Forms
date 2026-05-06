@@ -19,7 +19,7 @@ export function ResponseDrawer({ submission, fields, onClose }: ResponseDrawerPr
     setRevealedFields(prev => ({ ...prev, [fieldId]: !prev[fieldId] }));
   };
 
-  const orderedFields = (fields || []).slice().sort((a, b) => a.orderIndex - b.orderIndex);
+  const orderedFields = (fields || []).filter(f => f.fieldType !== 'paragraph');
   const raw = (submission.rawResponsesJson || {}) as Record<string, any>;
   const translated = (submission.translatedResponsesJson || {}) as Record<string, any>;
   const hasTranslation = submission.translationStatus === "done";
@@ -70,6 +70,7 @@ export function ResponseDrawer({ submission, fields, onClose }: ResponseDrawerPr
               // Primary display is the translated text if it exists, otherwise the raw text
               const primaryDisplay = translatedDisplay || rawDisplay;
               const canReveal = hasTranslation && translatedDisplay && translatedDisplay !== rawDisplay;
+              const isImage = f.fieldType === 'image_upload';
 
               return (
                 <div key={f.id} className="py-6 border-b border-border/50 last:border-0 group">
@@ -93,9 +94,20 @@ export function ResponseDrawer({ submission, fields, onClose }: ResponseDrawerPr
                   </div>
 
                   <div className="space-y-4">
-                    <p className="text-base text-foreground font-medium leading-relaxed whitespace-pre-wrap">
-                      {primaryDisplay}
-                    </p>
+                    {isImage && primaryDisplay && primaryDisplay !== "—" ? (
+                      <div className="rounded-lg overflow-hidden border bg-muted/20 max-w-sm">
+                        <img 
+                          src={primaryDisplay} 
+                          alt="Submission" 
+                          className="w-full h-auto cursor-pointer transition-transform hover:scale-[1.02]"
+                          onClick={() => window.open(primaryDisplay, '_blank')}
+                        />
+                      </div>
+                    ) : (
+                      <p className="text-base text-foreground font-medium leading-relaxed whitespace-pre-wrap">
+                        {primaryDisplay}
+                      </p>
+                    )}
                     
                     {isRevealed && (
                       <div className="pl-4 border-l-2 border-muted py-1 animate-in fade-in slide-in-from-left-1 duration-200">

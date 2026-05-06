@@ -17,7 +17,7 @@ import {
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 import { Sparkles, Wand2, ArrowRight, Globe, Loader2 } from "lucide-react";
-import type { GenerateFormResult, CreateFieldBody } from "@workspace/api-client-react";
+import type { GenerateFormResult } from "@workspace/api-client-react";
 import { SUPPORTED_LANGUAGES } from "@/lib/constants";
 
 const SUGGESTIONS = [
@@ -50,23 +50,30 @@ export default function CreateForm() {
       const result = await generateForm.mutateAsync({
         data: { prompt, language: selectedLanguage },
       });
+      console.log("AI Generation Result:", result);
       setGeneratedForm(result);
       toast.success("Form generated successfully!");
-    } catch {
+    } catch (err) {
+      console.error("AI Generation Error:", err);
       toast.error("Failed to generate form. Please try again.");
     }
   };
 
   const handleSaveDraft = async () => {
-    if (!generatedForm) return;
+    if (!generatedForm?.form) return;
 
     try {
+      // Robustly extract title/description even if nested structure is missing
+      const title = generatedForm.form.info?.title || (generatedForm.form as any).title || "Untitled Form";
+      const description = generatedForm.form.info?.description || (generatedForm.form as any).description;
+
       const result = await createForm.mutateAsync({
         data: {
-          title: generatedForm.form.title,
-          description: generatedForm.form.description,
+          title,
+          description,
           originalLanguage: selectedLanguage,
-          fields: generatedForm.form.fields,
+          documentJson: generatedForm.form,
+          featureImageUrl: generatedForm.featureImageUrl,
         },
       });
       toast.success("Draft saved!");
@@ -76,18 +83,22 @@ export default function CreateForm() {
     }
   };
 
-  const updateField = (index: number, updates: Partial<CreateFieldBody>) => {
-    if (!generatedForm) return;
-    const newFields = [...generatedForm.form.fields];
-    newFields[index] = { ...newFields[index], ...updates };
+  const updateItem = (index: number, updates: any) => {
+    if (!generatedForm?.form) return;
+    const newItems = [...(generatedForm.form.items || [])];
+    newItems[index] = { ...newItems[index], ...updates };
     setGeneratedForm({
       ...generatedForm,
-      form: { ...generatedForm.form, fields: newFields },
+      form: { ...generatedForm.form, items: newItems },
     });
   };
 
   const getLanguageName = (code: string) =>
     SUPPORTED_LANGUAGES.find(l => l.code === code)?.name || code;
+
+  // Helper to safely get form title and description for rendering
+  const formTitle = generatedForm?.form?.info?.title || (generatedForm?.form as any)?.title || "";
+  const formDescription = generatedForm?.form?.info?.description || (generatedForm?.form as any)?.description || "";
 
   return (
     <DashboardLayout>
@@ -185,27 +196,33 @@ export default function CreateForm() {
           </div>
         )}
 
-        {generatedForm && (
+        {generatedForm && generatedForm.form && (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-500">
             <div className="bg-card border border-border shadow-sm rounded-xl p-6">
               <div className="flex items-start justify-between mb-6">
                 <div className="space-y-2 flex-1">
                   <Input
-                    value={generatedForm.form.title}
+                    value={formTitle}
                     onChange={(e) =>
                       setGeneratedForm({
                         ...generatedForm,
-                        form: { ...generatedForm.form, title: e.target.value },
+                        form: { 
+                          ...generatedForm.form, 
+                          info: { ...(generatedForm.form.info || {}), title: e.target.value }
+                        },
                       })
                     }
                     className="text-2xl font-bold border-transparent hover:border-input focus:border-input px-0 h-auto py-1 shadow-none"
                   />
                   <Input
-                    value={generatedForm.form.description || ""}
+                    value={formDescription}
                     onChange={(e) =>
                       setGeneratedForm({
                         ...generatedForm,
-                        form: { ...generatedForm.form, description: e.target.value },
+                        form: { 
+                          ...generatedForm.form, 
+                          info: { ...(generatedForm.form.info || {}), description: e.target.value }
+                        },
                       })
                     }
                     className="text-muted-foreground border-transparent hover:border-input focus:border-input px-0 h-auto py-1 shadow-none"
@@ -230,36 +247,48 @@ export default function CreateForm() {
               </div>
 
               <div className="space-y-3">
-                <h3 className="font-semibold text-foreground mb-4">Generated Fields</h3>
-                {generatedForm.form.fields.map((field, index) => (
-                  <Card key={index} className="border-border/50 bg-background/50 shadow-sm">
-                    <CardContent className="p-4 flex gap-4 items-start">
-                      <div className="w-8 h-8 rounded bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground shrink-0 mt-1">
-                        {index + 1}
-                      </div>
-                      <div className="flex-1 space-y-2">
-                        <Input
-                          value={field.label}
-                          onChange={(e) => updateField(index, { label: e.target.value })}
-                          className="font-medium bg-transparent border-transparent hover:border-input focus:bg-background"
-                        />
-                        <div className="flex gap-2 items-center">
-                          <Badge variant="secondary" className="text-xs font-normal capitalize">
-                            {field.fieldType.replace("_", " ")}
-                          </Badge>
-                          {field.isRequired && (
-                            <Badge
-                              variant="outline"
-                              className="text-xs font-normal text-destructive border-destructive/30 bg-destructive/5"
-                            >
-                              Required
-                            </Badge>
-                          )}
+                <h3 className="font-semibold text-foreground mb-4">Generated Questions</h3>
+                {(generatedForm.form.items || []).map((item, index) => {
+                  const question = item.questionItem?.question;
+                  const choice = question?.choiceQuestion;
+                  const text = question?.textQuestion;
+                  const rating = question?.ratingQuestion;
+
+                  let typeLabel = "Short Text";
+                  if (choice) typeLabel = choice.type === 'CHECKBOX' ? "Checkboxes" : "Multiple Choice";
+                  else if (text?.paragraph) typeLabel = "Paragraph";
+                  else if (rating) typeLabel = "Rating";
+
+                  return (
+                    <Card key={index} className="border-border/50 bg-background/50 shadow-sm">
+                      <CardContent className="p-4 flex gap-4 items-start">
+                        <div className="w-8 h-8 rounded bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground shrink-0 mt-1">
+                          {index + 1}
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                        <div className="flex-1 space-y-2">
+                          <Input
+                            value={item.title}
+                            onChange={(e) => updateItem(index, { title: e.target.value })}
+                            className="font-medium bg-transparent border-transparent hover:border-input focus:bg-background"
+                          />
+                          <div className="flex gap-2 items-center">
+                            <Badge variant="secondary" className="text-xs font-normal">
+                              {typeLabel}
+                            </Badge>
+                            {question?.required && (
+                              <Badge
+                                variant="outline"
+                                className="text-xs font-normal text-destructive border-destructive/30 bg-destructive/5"
+                              >
+                                Required
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             </div>
 

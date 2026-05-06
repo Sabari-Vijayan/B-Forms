@@ -164,7 +164,7 @@ export default function Templates() {
                 <div className="flex items-center gap-4 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <FileText className="w-3.5 h-3.5" />
-                    {tmpl.fieldCount} field{tmpl.fieldCount !== 1 ? "s" : ""}
+                    {tmpl.itemCount} field{tmpl.itemCount !== 1 ? "s" : ""}
                   </span>
                   <span className="flex items-center gap-1">
                     <Users className="w-3.5 h-3.5" />

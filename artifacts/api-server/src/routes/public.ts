@@ -1,7 +1,44 @@
 import { Router } from "express";
+import multer from "multer";
+import { nanoid } from "nanoid";
 import { createAdminClient } from "../lib/supabase.js";
 
 const router = Router();
+const upload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+});
+
+router.post("/public/upload", upload.single("file"), async (req, res) => {
+  if (!req.file) {
+    res.status(400).json({ error: "No file uploaded" });
+    return;
+  }
+
+  const admin = createAdminClient();
+  const file = req.file;
+  const fileExt = file.originalname.split(".").pop();
+  const fileName = `${nanoid()}.${fileExt}`;
+  const filePath = `uploads/${fileName}`;
+
+  const { data, error } = await admin.storage
+    .from("form-attachments")
+    .upload(filePath, file.buffer, {
+      contentType: file.mimetype,
+      upsert: false,
+    });
+
+  if (error) {
+    res.status(500).json({ error: error.message });
+    return;
+  }
+
+  const { data: { publicUrl } } = admin.storage
+    .from("form-attachments")
+    .getPublicUrl(filePath);
+
+  res.json({ url: publicUrl });
+});
 
 router.get("/public/forms/:slug", async (req, res) => {
   const admin = createAdminClient();
@@ -18,30 +55,12 @@ router.get("/public/forms/:slug", async (req, res) => {
     return;
   }
 
-  const [fieldsResult, translationsResult] = await Promise.all([
-    admin
-      .from("form_fields")
-      .select("*")
-      .eq("form_id", form.id)
-      .order("order_index"),
-    admin
-      .from("form_translations")
-      .select("*")
-      .eq("form_id", form.id),
-  ]);
+  const { data: translationsResult } = await admin
+    .from("form_translations")
+    .select("*")
+    .eq("form_id", form.id);
 
-  const fields = (fieldsResult.data || []).map((f) => ({
-    id: f.id,
-    formId: f.form_id,
-    orderIndex: f.order_index,
-    fieldType: f.field_type,
-    label: f.label,
-    placeholder: f.placeholder,
-    isRequired: f.is_required,
-    optionsJson: f.options_json,
-  }));
-
-  const translations = (translationsResult.data || []).map((t) => ({
+  const translations = (translationsResult || []).map((t) => ({
     id: t.id,
     formId: t.form_id,
     language: t.language,
@@ -57,7 +76,7 @@ router.get("/public/forms/:slug", async (req, res) => {
     slug: form.slug,
     originalLanguage: form.original_language,
     supportedLanguages: form.supported_languages || [],
-    fields,
+    documentJson: form.document_json,
     translations,
   });
 });

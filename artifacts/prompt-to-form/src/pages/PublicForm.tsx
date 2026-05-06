@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Globe, Star, Download } from "lucide-react";
+import { Loader2, Globe, Star, Download, Image as ImageIcon, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { SUPPORTED_LANGUAGES } from "@/lib/constants";
 import confetti from "canvas-confetti";
@@ -62,6 +62,7 @@ export default function PublicForm() {
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSwitchingLanguage, setIsSwitchingLanguage] = useState(false);
+  const [uploadingField, setUploadingField] = useState<string | null>(null);
 
   const search = useSearch();
 
@@ -160,6 +161,34 @@ export default function PublicForm() {
     setFormData((prev) => ({ ...prev, [fieldId]: value }));
   };
 
+  const handleFileUpload = async (fieldId: string, file: File) => {
+    if (!file) return;
+    setUploadingField(fieldId);
+    try {
+      const data = new FormData();
+      data.append("file", file);
+
+      const response = await fetch("/api/public/upload", {
+        method: "POST",
+        body: data,
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || "Upload failed");
+      }
+
+      const result = await response.json();
+      handleInputChange(fieldId, result.url);
+      toast.success("Image uploaded successfully");
+    } catch (err: any) {
+      console.error("Upload error:", err);
+      toast.error(err.message || "Failed to upload image");
+    } finally {
+      setUploadingField(null);
+    }
+  };
+
   const handleLanguageChange = (lang: string) => {
     if (lang === selectedLang) return;
     setIsSwitchingLanguage(true);
@@ -229,121 +258,117 @@ export default function PublicForm() {
             </CardHeader>
 
             <CardContent className={`space-y-8 pt-6 print:space-y-12 print:px-0 transition-opacity duration-200 ${isSwitchingLanguage ? "opacity-50" : "opacity-100"}`}>
-              {form.fields
-                .slice()
-                .sort((a, b) => a.orderIndex - b.orderIndex)
-                .map((field) => {
-                  const label = t[`field_${field.id}_label`] || field.label;
-                  const placeholder = t[`field_${field.id}_placeholder`] || field.placeholder;
+              {(form.documentJson.items || [])
+                .map((item) => {
+                  const label = t[`item_${item.itemId}_title`] || item.title;
+                  const placeholder = t[`item_${item.itemId}_description`] || item.description;
 
-                  // Display labels for options come from translations; stored values use the
-                  // original option text so language switches don't invalidate selections.
-                  const originalOptions: string[] = field.optionsJson || [];
+                  if (!item.questionItem) {
+                    return (
+                      <div key={item.itemId} className="space-y-2 print:space-y-4 print:break-inside-avoid border-l-4 border-primary/20 pl-4 py-1">
+                        <h3 className="text-lg font-bold text-foreground">{label}</h3>
+                        {placeholder && (
+                          <p className="text-muted-foreground whitespace-pre-wrap leading-relaxed">{placeholder}</p>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  const question = item.questionItem.question;
+                  const choice = question.choiceQuestion;
+                  const text = question.textQuestion;
+                  const rating = question.ratingQuestion;
+                  const file = question.fileQuestion;
+
+                  const originalOptions: string[] = choice?.options || [];
                   const displayOptions = originalOptions.map(
-                    (orig, i) => t[`field_${field.id}_option_${i}`] || orig
+                    (orig, i) => t[`item_${item.itemId}_option_${i}`] || orig
                   );
 
                   return (
-                    <div key={field.id} className="space-y-3 print:space-y-4 print:break-inside-avoid">
+                    <div key={item.itemId} className="space-y-3 print:space-y-4 print:break-inside-avoid">
                       <Label className="text-base font-medium flex gap-1 print:text-lg print:text-black">
                         {label}
-                        {field.isRequired && <span className="text-destructive print:text-black">*</span>}
+                        {question.required && <span className="text-destructive print:text-black">*</span>}
                       </Label>
 
-                      {field.fieldType === "short_text" && (
+                      {text && (
                         <>
-                          <Input
-                            required={field.isRequired}
-                            placeholder={placeholder || ""}
-                            value={formData[field.id] || ""}
-                            onChange={(e) => handleInputChange(field.id, e.target.value)}
-                            className="bg-muted/30 focus:bg-background print:hidden"
-                          />
+                          {text.paragraph ? (
+                            <Textarea
+                              required={question.required}
+                              placeholder={placeholder || ""}
+                              value={formData[item.itemId] || ""}
+                              onChange={(e) => handleInputChange(item.itemId, e.target.value)}
+                              className="bg-muted/30 focus:bg-background min-h-[100px] print:hidden"
+                            />
+                          ) : (
+                            <Input
+                              required={question.required}
+                              placeholder={placeholder || ""}
+                              value={formData[item.itemId] || ""}
+                              onChange={(e) => handleInputChange(item.itemId, e.target.value)}
+                              className="bg-muted/30 focus:bg-background print:hidden"
+                            />
+                          )}
                           <div className="hidden print:block border-b border-black/30 min-h-[2.5rem] w-full" />
                         </>
                       )}
 
-                      {field.fieldType === "long_text" && (
+                      {choice && (
                         <>
-                          <Textarea
-                            required={field.isRequired}
-                            placeholder={placeholder || ""}
-                            value={formData[field.id] || ""}
-                            onChange={(e) => handleInputChange(field.id, e.target.value)}
-                            className="bg-muted/30 focus:bg-background min-h-[100px] print:hidden"
-                          />
-                          <div className="hidden print:block border border-black/20 rounded-sm min-h-[4in] w-full p-0 relative overflow-hidden">
-                             {[...Array(12)].map((_, i) => (
-                               <div key={i} className="border-b border-black/10 h-8 last:border-0" />
-                             ))}
-                          </div>
-                        </>
-                      )}
-
-                      {field.fieldType === "single_choice" && (
-                        <>
-                          <RadioGroup
-                            required={field.isRequired}
-                            value={formData[field.id] || ""}
-                            onValueChange={(val) => handleInputChange(field.id, val)}
-                            className="space-y-2 print:hidden"
-                          >
-                            {originalOptions.map((orig, i) => (
-                              <div
-                                key={i}
-                                className="flex items-center space-x-3 bg-muted/20 p-3 rounded-lg border border-transparent hover:border-border transition-colors"
-                              >
-                                <RadioGroupItem value={orig} id={`${field.id}-${i}`} />
-                                <Label htmlFor={`${field.id}-${i}`} className="font-normal cursor-pointer flex-1">
-                                  {displayOptions[i]}
-                                </Label>
-                              </div>
-                            ))}
-                          </RadioGroup>
-                          <div className="hidden print:grid print:grid-cols-1 print:gap-y-4 print:pt-1">
-                            {displayOptions.map((option, i) => (
-                              <div key={i} className="flex items-center gap-4">
-                                <span className="inline-block w-5 h-5 rounded-full border-2 border-black/40" />
-                                <span className="text-base text-black">{option}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </>
-                      )}
-
-                      {field.fieldType === "multi_choice" && (
-                        <>
-                          <div className="space-y-2 print:hidden">
-                            {originalOptions.map((orig, i) => {
-                              const currentVals = (formData[field.id] as string[]) || [];
-                              const isChecked = currentVals.includes(orig);
-                              return (
+                          {choice.type === 'CHECKBOX' ? (
+                            <div className="space-y-2 print:hidden">
+                              {originalOptions.map((orig, i) => {
+                                const currentVals = (formData[item.itemId] as string[]) || [];
+                                const isChecked = currentVals.includes(orig);
+                                return (
+                                  <div
+                                    key={i}
+                                    className="flex items-center space-x-3 bg-muted/20 p-3 rounded-lg border border-transparent hover:border-border transition-colors"
+                                  >
+                                    <Checkbox
+                                      id={`${item.itemId}-${i}`}
+                                      checked={isChecked}
+                                      onCheckedChange={(checked) => {
+                                        if (checked) {
+                                          handleInputChange(item.itemId, [...currentVals, orig]);
+                                        } else {
+                                          handleInputChange(item.itemId, currentVals.filter((v) => v !== orig));
+                                        }
+                                      }}
+                                    />
+                                    <Label htmlFor={`${item.itemId}-${i}`} className="font-normal cursor-pointer flex-1">
+                                      {displayOptions[i]}
+                                    </Label>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <RadioGroup
+                              required={question.required}
+                              value={formData[item.itemId] || ""}
+                              onValueChange={(val) => handleInputChange(item.itemId, val)}
+                              className="space-y-2 print:hidden"
+                            >
+                              {originalOptions.map((orig, i) => (
                                 <div
                                   key={i}
                                   className="flex items-center space-x-3 bg-muted/20 p-3 rounded-lg border border-transparent hover:border-border transition-colors"
                                 >
-                                  <Checkbox
-                                    id={`${field.id}-${i}`}
-                                    checked={isChecked}
-                                    onCheckedChange={(checked) => {
-                                      if (checked) {
-                                        handleInputChange(field.id, [...currentVals, orig]);
-                                      } else {
-                                        handleInputChange(field.id, currentVals.filter((v) => v !== orig));
-                                      }
-                                    }}
-                                  />
-                                  <Label htmlFor={`${field.id}-${i}`} className="font-normal cursor-pointer flex-1">
+                                  <RadioGroupItem value={orig} id={`${item.itemId}-${i}`} />
+                                  <Label htmlFor={`${item.itemId}-${i}`} className="font-normal cursor-pointer flex-1">
                                     {displayOptions[i]}
                                   </Label>
                                 </div>
-                              );
-                            })}
-                          </div>
+                              ))}
+                            </RadioGroup>
+                          )}
                           <div className="hidden print:grid print:grid-cols-1 print:gap-y-4 print:pt-1">
                             {displayOptions.map((option, i) => (
                               <div key={i} className="flex items-center gap-4">
-                                <span className="inline-block w-5 h-5 border-2 border-black/40 rounded-sm" />
+                                <span className={`inline-block w-5 h-5 border-2 border-black/40 ${choice.type === 'RADIO' ? 'rounded-full' : 'rounded-sm'}`} />
                                 <span className="text-base text-black">{option}</span>
                               </div>
                             ))}
@@ -351,75 +376,81 @@ export default function PublicForm() {
                         </>
                       )}
 
-                      {field.fieldType === "email" && (
-                        <>
-                          <Input
-                            type="email"
-                            required={field.isRequired}
-                            placeholder={placeholder || "name@example.com"}
-                            value={formData[field.id] || ""}
-                            onChange={(e) => handleInputChange(field.id, e.target.value)}
-                            className="bg-muted/30 focus:bg-background print:hidden"
-                          />
-                          <div className="hidden print:block border-b border-black/30 min-h-[2.5rem] w-full" />
-                        </>
-                      )}
-
-                      {field.fieldType === "phone" && (
-                        <>
-                          <Input
-                            type="tel"
-                            required={field.isRequired}
-                            placeholder={placeholder || ""}
-                            value={formData[field.id] || ""}
-                            onChange={(e) => handleInputChange(field.id, e.target.value)}
-                            className="bg-muted/30 focus:bg-background print:hidden"
-                          />
-                          <div className="hidden print:block border-b border-black/30 min-h-[2.5rem] w-full" />
-                        </>
-                      )}
-
-                      {field.fieldType === "date" && (
-                        <>
-                          <Input
-                            type="date"
-                            required={field.isRequired}
-                            value={formData[field.id] || ""}
-                            onChange={(e) => handleInputChange(field.id, e.target.value)}
-                            className="bg-muted/30 focus:bg-background w-auto print:hidden"
-                          />
-                          <div className="hidden print:flex items-center gap-2">
-                             <div className="border-b border-black/30 min-h-[2.5rem] w-12 text-center text-[10px] text-black/30 pt-6">DD</div>
-                             <div className="text-black/30 pt-4">/</div>
-                             <div className="border-b border-black/30 min-h-[2.5rem] w-12 text-center text-[10px] text-black/30 pt-6">MM</div>
-                             <div className="text-black/30 pt-4">/</div>
-                             <div className="border-b border-black/30 min-h-[2.5rem] w-24 text-center text-[10px] text-black/30 pt-6">YYYY</div>
-                          </div>
-                        </>
-                      )}
-
-                      {field.fieldType === "rating" && (
+                      {rating && (
                         <>
                           <div className="print:hidden">
                             <StarRating
-                              value={Number(formData[field.id]) || 0}
-                              onChange={(val) => handleInputChange(field.id, val)}
-                              required={field.isRequired}
+                              value={Number(formData[item.itemId]) || 0}
+                              onChange={(val) => handleInputChange(item.itemId, val)}
+                              required={question.required}
                             />
                           </div>
                           <div className="hidden print:flex items-center gap-8 pt-4">
-                            {[1, 2, 3, 4, 5].map((num) => (
-                              <div key={num} className="flex flex-col items-center gap-2">
-                                <span className="inline-block w-12 h-12 border-2 border-black/40 rounded-full text-xl font-bold flex items-center justify-center">
-                                  {num}
-                                </span>
-                                <span className="text-[10px] font-semibold text-black/60 uppercase tracking-wider">
-                                  {num === 1 ? "Poor" : num === 5 ? "Excellent" : ""}
-                                </span>
-                              </div>
-                            ))}
+                            {[...Array(rating.maxRating || 5)].map((_, i) => {
+                              const num = i + 1;
+                              return (
+                                <div key={num} className="flex flex-col items-center gap-2">
+                                  <span className="inline-block w-12 h-12 border-2 border-black/40 rounded-full text-xl font-bold flex items-center justify-center">
+                                    {num}
+                                  </span>
+                                </div>
+                              );
+                            })}
                           </div>
                         </>
+                      )}
+
+                      {file && (
+                        <div className="space-y-4">
+                          <div className="print:hidden">
+                            {formData[item.itemId] ? (
+                              <div className="relative aspect-video w-full max-w-sm overflow-hidden rounded-lg border bg-muted/20 group">
+                                <img 
+                                  src={formData[item.itemId]} 
+                                  alt="Uploaded" 
+                                  className="h-full w-full object-cover"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleInputChange(item.itemId, null)}
+                                  className="absolute top-2 right-2 p-1 bg-background/80 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center justify-center border-2 border-dashed border-muted-foreground/20 rounded-xl p-8 bg-muted/5 hover:bg-muted/10 transition-colors relative">
+                                <Input
+                                  type="file"
+                                  accept="image/*"
+                                  className="absolute inset-0 opacity-0 cursor-pointer"
+                                  disabled={uploadingField === item.itemId}
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) handleFileUpload(item.itemId, file);
+                                  }}
+                                />
+                                {uploadingField === item.itemId ? (
+                                  <>
+                                    <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />
+                                    <p className="text-sm font-medium">Uploading...</p>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                                      <Upload className="w-6 h-6 text-primary" />
+                                    </div>
+                                    <p className="text-sm font-medium">Click or drag to upload image</p>
+                                    <p className="text-xs text-muted-foreground mt-1">PNG, JPG up to 5MB</p>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          <div className="hidden print:block border-2 border-dashed border-black/20 rounded-lg p-12 text-center text-black/40 italic">
+                             [Image Upload Field]
+                          </div>
+                        </div>
                       )}
                     </div>
                   );

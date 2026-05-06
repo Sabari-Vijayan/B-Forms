@@ -10,7 +10,7 @@ const router = Router();
  */
 router.get("/dashboard/summary", requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
-    const summary = await FormsService.getDashboardSummary(req.accessToken, req.user!.id);
+    const summary = await FormsService.getDashboardSummary(req.accessToken!, req.user!.id);
     res.json(summary);
   } catch (error: any) {
     logger.error({ error: error.message }, "Failed to fetch dashboard summary");

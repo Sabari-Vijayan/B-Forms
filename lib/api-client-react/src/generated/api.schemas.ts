@@ -26,6 +26,69 @@ export const FormStatus = {
   closed: "closed",
 } as const;
 
+export type QuestionChoiceQuestionType =
+  (typeof QuestionChoiceQuestionType)[keyof typeof QuestionChoiceQuestionType];
+
+export const QuestionChoiceQuestionType = {
+  RADIO: "RADIO",
+  CHECKBOX: "CHECKBOX",
+  DROP_DOWN: "DROP_DOWN",
+} as const;
+
+export type QuestionChoiceQuestion = {
+  type: QuestionChoiceQuestionType;
+  options: string[];
+};
+
+export type QuestionTextQuestion = {
+  paragraph: boolean;
+};
+
+export type QuestionDateQuestion = { [key: string]: unknown };
+
+export type QuestionTimeQuestion = { [key: string]: unknown };
+
+export type QuestionRatingQuestion = {
+  maxRating: number;
+};
+
+export type QuestionFileQuestion = {
+  maxFiles?: number;
+  acceptedTypes?: string[];
+};
+
+export interface Question {
+  questionId: string;
+  required: boolean;
+  choiceQuestion?: QuestionChoiceQuestion;
+  textQuestion?: QuestionTextQuestion;
+  dateQuestion?: QuestionDateQuestion;
+  timeQuestion?: QuestionTimeQuestion;
+  ratingQuestion?: QuestionRatingQuestion;
+  fileQuestion?: QuestionFileQuestion;
+}
+
+export interface QuestionItem {
+  question: Question;
+}
+
+export interface Item {
+  itemId: string;
+  title: string;
+  description?: string | null;
+  questionItem?: QuestionItem;
+}
+
+export type FormDocumentInfo = {
+  title: string;
+  description?: string | null;
+};
+
+export interface FormDocument {
+  info: FormDocumentInfo;
+  items: Item[];
+}
+
 export interface Form {
   id: string;
   userId: string;
@@ -40,31 +103,7 @@ export interface Form {
   responseLimit?: number | null;
   closesAt?: string | null;
   createdAt: string;
-}
-
-export type FormFieldFieldType =
-  (typeof FormFieldFieldType)[keyof typeof FormFieldFieldType];
-
-export const FormFieldFieldType = {
-  short_text: "short_text",
-  long_text: "long_text",
-  single_choice: "single_choice",
-  multi_choice: "multi_choice",
-  rating: "rating",
-  date: "date",
-  email: "email",
-  phone: "phone",
-} as const;
-
-export interface FormField {
-  id: string;
-  formId: string;
-  orderIndex: number;
-  fieldType: FormFieldFieldType;
-  label: string;
-  placeholder?: string | null;
-  isRequired: boolean;
-  optionsJson?: string[] | null;
+  documentJson: FormDocument;
 }
 
 export type FormTranslationTranslationsJson = { [key: string]: unknown };
@@ -105,16 +144,16 @@ export interface Submission {
   submittedAt: string;
 }
 
-export type FormWithFieldsStatus =
-  (typeof FormWithFieldsStatus)[keyof typeof FormWithFieldsStatus];
+export type FormWithDocumentStatus =
+  (typeof FormWithDocumentStatus)[keyof typeof FormWithDocumentStatus];
 
-export const FormWithFieldsStatus = {
+export const FormWithDocumentStatus = {
   draft: "draft",
   published: "published",
   closed: "closed",
 } as const;
 
-export interface FormWithFields {
+export interface FormWithDocument {
   id: string;
   userId: string;
   title: string;
@@ -123,12 +162,12 @@ export interface FormWithFields {
   slug: string;
   originalLanguage: string;
   preferredLanguage?: string | null;
-  status: FormWithFieldsStatus;
+  status: FormWithDocumentStatus;
   supportedLanguages: string[];
   responseLimit?: number | null;
   closesAt?: string | null;
   createdAt: string;
-  fields: FormField[];
+  documentJson: FormDocument;
 }
 
 export interface PublicForm {
@@ -139,7 +178,7 @@ export interface PublicForm {
   slug: string;
   originalLanguage: string;
   supportedLanguages: string[];
-  fields: FormField[];
+  documentJson: FormDocument;
   translations: FormTranslation[];
 }
 
@@ -184,35 +223,12 @@ export interface UpdateMeBody {
   preferredLanguage?: string | null;
 }
 
-export type CreateFieldBodyFieldType =
-  (typeof CreateFieldBodyFieldType)[keyof typeof CreateFieldBodyFieldType];
-
-export const CreateFieldBodyFieldType = {
-  short_text: "short_text",
-  long_text: "long_text",
-  single_choice: "single_choice",
-  multi_choice: "multi_choice",
-  rating: "rating",
-  date: "date",
-  email: "email",
-  phone: "phone",
-} as const;
-
-export interface CreateFieldBody {
-  fieldType: CreateFieldBodyFieldType;
-  label: string;
-  placeholder?: string | null;
-  isRequired: boolean;
-  optionsJson?: string[] | null;
-  orderIndex?: number;
-}
-
 export interface CreateFormBody {
   title: string;
   description?: string | null;
   featureImageUrl?: string | null;
   originalLanguage: string;
-  fields: CreateFieldBody[];
+  documentJson: FormDocument;
 }
 
 export type UpdateFormBodyStatus =
@@ -233,6 +249,7 @@ export interface UpdateFormBody {
   supportedLanguages?: string[];
   responseLimit?: number | null;
   closesAt?: string | null;
+  documentJson?: FormDocument;
 }
 
 export interface PublishFormBody {
@@ -243,18 +260,6 @@ export interface PublishFormResult {
   success: boolean;
   failedLanguages: number;
   form: Form;
-}
-
-export interface UpdateFieldBody {
-  label?: string;
-  placeholder?: string | null;
-  isRequired?: boolean;
-  optionsJson?: string[] | null;
-  orderIndex?: number;
-}
-
-export interface ReorderFieldsBody {
-  fieldIds: string[];
 }
 
 export type SubmitFormBodyResponses = { [key: string]: unknown };
@@ -270,16 +275,10 @@ export interface GenerateFormBody {
   language?: string;
 }
 
-export type GenerateFormResultForm = {
-  title: string;
-  description?: string | null;
-  featureImageUrl?: string | null;
-  fields: CreateFieldBody[];
-};
-
 export interface GenerateFormResult {
-  form: GenerateFormResultForm;
+  form: FormDocument;
   detectedLanguage: string;
+  featureImageUrl?: string | null;
 }
 
 export interface FormTemplate {
@@ -293,8 +292,8 @@ export interface FormTemplate {
   isPublic: boolean;
   useCount: number;
   createdAt: string;
-  fieldCount: number;
-  fields?: FormField[];
+  itemCount: number;
+  documentJson: FormDocument;
 }
 
 export interface SaveTemplateBody {
@@ -307,10 +306,6 @@ export interface SaveTemplateBody {
 
 export type GenerateFormSentimentSummary200 = {
   summary?: string;
-};
-
-export type ReorderFields200 = {
-  success?: boolean;
 };
 
 export type ListTemplatesParams = {

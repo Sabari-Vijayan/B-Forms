@@ -1,6 +1,5 @@
 import { TemplatesSql } from "./templates.sql.js";
 import { FormsSql } from "../forms/forms.sql.js";
-import { FieldsSql } from "../fields/fields.sql.js";
 import { generateSlug } from "../../lib/nanoid.js";
 
 export const TemplatesService = {
@@ -23,23 +22,10 @@ export const TemplatesService = {
       slug,
       original_language: "en", // Default for templates
       status: "draft",
+      document_json: template.document_json,
     });
 
     if (fError) throw fError;
-
-    // Copy fields (fields are stored as JSON in template for simplicity in this MVP)
-    const fields = template.fields_json || [];
-    for (const [idx, f] of fields.entries()) {
-      await FieldsSql.createField(null as any, { // Admin bypass
-        form_id: form.id,
-        field_type: f.field_type,
-        label: f.label,
-        placeholder: f.placeholder,
-        is_required: f.is_required,
-        options_json: f.options_json,
-        order_index: idx
-      });
-    }
 
     await TemplatesSql.incrementUseCount(templateId);
     return form;
@@ -50,17 +36,15 @@ export const TemplatesService = {
     const { data: form, error: fError } = await FormsSql.findFormById(null as any, formId);
     if (fError || form.user_id !== userId) throw new Error("Unauthorized");
 
-    // Get fields to embed in template
-    const { data: fields } = await FieldsSql.getFieldsByFormId(null as any, formId);
-
     return await TemplatesSql.upsertTemplate({
       form_id: formId,
+      user_id: userId,
       title: templateData.title,
       description: templateData.description,
       feature_image_url: templateData.feature_image_url,
       category: templateData.category,
       is_public: templateData.is_public,
-      fields_json: fields
+      document_json: form.document_json
     });
   }
 };

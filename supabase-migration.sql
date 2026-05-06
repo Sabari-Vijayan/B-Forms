@@ -18,6 +18,7 @@ create table if not exists public.forms (
   preferred_language text,
   response_limit     integer,
   closes_at          timestamptz,
+  document_json      jsonb not null default '{"info": {}, "items": []}',
   created_at         timestamptz not null default now()
 );
 
@@ -25,23 +26,7 @@ create index if not exists forms_user_id_idx   on public.forms(user_id);
 create index if not exists forms_slug_idx      on public.forms(slug);
 create index if not exists forms_status_idx    on public.forms(status);
 
--- 2. FORM FIELDS
-create table if not exists public.form_fields (
-  id           uuid primary key default gen_random_uuid(),
-  form_id      uuid not null references public.forms(id) on delete cascade,
-  order_index  integer not null default 0,
-  field_type   text not null check (field_type in (
-                  'short_text','long_text','single_choice',
-                  'multi_choice','rating','date','email','phone')),
-  label        text not null,
-  placeholder  text,
-  is_required  boolean not null default false,
-  options_json text[]
-);
-
-create index if not exists form_fields_form_id_idx on public.form_fields(form_id);
-
--- 3. FORM TRANSLATIONS
+-- 2. FORM TRANSLATIONS
 create table if not exists public.form_translations (
   id               uuid primary key default gen_random_uuid(),
   form_id          uuid not null references public.forms(id) on delete cascade,
@@ -53,7 +38,7 @@ create table if not exists public.form_translations (
 
 create index if not exists form_translations_form_id_idx on public.form_translations(form_id);
 
--- 4. SUBMISSIONS
+-- 3. SUBMISSIONS
 create table if not exists public.submissions (
   id                       uuid primary key default gen_random_uuid(),
   form_id                  uuid not null references public.forms(id) on delete cascade,
@@ -67,7 +52,7 @@ create table if not exists public.submissions (
 
 create index if not exists submissions_form_id_idx on public.submissions(form_id);
 
--- 5. FORM TEMPLATES
+-- 4. FORM TEMPLATES
 create table if not exists public.form_templates (
   id                 uuid primary key default gen_random_uuid(),
   form_id            uuid not null unique references public.forms(id) on delete cascade,
@@ -78,14 +63,14 @@ create table if not exists public.form_templates (
   category           text not null default 'general',
   is_public          boolean not null default true,
   use_count          integer not null default 0,
-  fields_json        jsonb,
+  document_json      jsonb,
   created_at         timestamptz not null default now()
 );
 
 create index if not exists form_templates_user_id_idx on public.form_templates(user_id);
 create index if not exists form_templates_category_idx on public.form_templates(category);
 
--- 6. FUNCTIONS
+-- 5. FUNCTIONS
 create or replace function public.increment_template_use_count(template_id uuid)
 returns void as $$
 begin
@@ -107,18 +92,9 @@ create policy "owners can manage their forms"
   using  (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
--- Form fields: controlled via parent form ownership
-alter table public.form_fields enable row level security;
-
-create policy "owners can manage fields of their forms"
-  on public.form_fields for all
-  using  (exists (select 1 from public.forms where id = form_id and user_id = auth.uid()))
-  with check (exists (select 1 from public.forms where id = form_id and user_id = auth.uid()));
-
--- Published fields are readable by anyone (for public form view)
-create policy "anyone can read fields of published forms"
-  on public.form_fields for select
-  using (exists (select 1 from public.forms where id = form_id and status = 'published'));
+create policy "anyone can read published forms"
+  on public.forms for select
+  using (status = 'published');
 
 -- Form translations: readable by anyone, writable only by service role
 alter table public.form_translations enable row level security;

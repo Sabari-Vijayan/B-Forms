@@ -54,6 +54,51 @@ export const ListFormsResponseItem = zod.object({
   responseLimit: zod.number().nullish(),
   closesAt: zod.string().nullish(),
   createdAt: zod.string(),
+  documentJson: zod.object({
+    info: zod.object({
+      title: zod.string(),
+      description: zod.string().nullish(),
+    }),
+    items: zod.array(
+      zod.object({
+        itemId: zod.string(),
+        title: zod.string(),
+        description: zod.string().nullish(),
+        questionItem: zod
+          .object({
+            question: zod.object({
+              questionId: zod.string(),
+              required: zod.boolean(),
+              choiceQuestion: zod
+                .object({
+                  type: zod.enum(["RADIO", "CHECKBOX", "DROP_DOWN"]),
+                  options: zod.array(zod.string()),
+                })
+                .optional(),
+              textQuestion: zod
+                .object({
+                  paragraph: zod.boolean(),
+                })
+                .optional(),
+              dateQuestion: zod.object({}).passthrough().optional(),
+              timeQuestion: zod.object({}).passthrough().optional(),
+              ratingQuestion: zod
+                .object({
+                  maxRating: zod.number(),
+                })
+                .optional(),
+              fileQuestion: zod
+                .object({
+                  maxFiles: zod.number().optional(),
+                  acceptedTypes: zod.array(zod.string()).optional(),
+                })
+                .optional(),
+            }),
+          })
+          .optional(),
+      }),
+    ),
+  }),
 });
 export const ListFormsResponse = zod.array(ListFormsResponseItem);
 
@@ -65,25 +110,51 @@ export const CreateFormBody = zod.object({
   description: zod.string().nullish(),
   featureImageUrl: zod.string().nullish(),
   originalLanguage: zod.string(),
-  fields: zod.array(
-    zod.object({
-      fieldType: zod.enum([
-        "short_text",
-        "long_text",
-        "single_choice",
-        "multi_choice",
-        "rating",
-        "date",
-        "email",
-        "phone",
-      ]),
-      label: zod.string(),
-      placeholder: zod.string().nullish(),
-      isRequired: zod.boolean(),
-      optionsJson: zod.array(zod.string()).nullish(),
-      orderIndex: zod.number().optional(),
+  documentJson: zod.object({
+    info: zod.object({
+      title: zod.string(),
+      description: zod.string().nullish(),
     }),
-  ),
+    items: zod.array(
+      zod.object({
+        itemId: zod.string(),
+        title: zod.string(),
+        description: zod.string().nullish(),
+        questionItem: zod
+          .object({
+            question: zod.object({
+              questionId: zod.string(),
+              required: zod.boolean(),
+              choiceQuestion: zod
+                .object({
+                  type: zod.enum(["RADIO", "CHECKBOX", "DROP_DOWN"]),
+                  options: zod.array(zod.string()),
+                })
+                .optional(),
+              textQuestion: zod
+                .object({
+                  paragraph: zod.boolean(),
+                })
+                .optional(),
+              dateQuestion: zod.object({}).passthrough().optional(),
+              timeQuestion: zod.object({}).passthrough().optional(),
+              ratingQuestion: zod
+                .object({
+                  maxRating: zod.number(),
+                })
+                .optional(),
+              fileQuestion: zod
+                .object({
+                  maxFiles: zod.number().optional(),
+                  acceptedTypes: zod.array(zod.string()).optional(),
+                })
+                .optional(),
+            }),
+          })
+          .optional(),
+      }),
+    ),
+  }),
 });
 
 /**
@@ -107,31 +178,55 @@ export const GetFormResponse = zod.object({
   responseLimit: zod.number().nullish(),
   closesAt: zod.string().nullish(),
   createdAt: zod.string(),
-  fields: zod.array(
-    zod.object({
-      id: zod.string(),
-      formId: zod.string(),
-      orderIndex: zod.number(),
-      fieldType: zod.enum([
-        "short_text",
-        "long_text",
-        "single_choice",
-        "multi_choice",
-        "rating",
-        "date",
-        "email",
-        "phone",
-      ]),
-      label: zod.string(),
-      placeholder: zod.string().nullish(),
-      isRequired: zod.boolean(),
-      optionsJson: zod.array(zod.string()).nullish(),
+  documentJson: zod.object({
+    info: zod.object({
+      title: zod.string(),
+      description: zod.string().nullish(),
     }),
-  ),
+    items: zod.array(
+      zod.object({
+        itemId: zod.string(),
+        title: zod.string(),
+        description: zod.string().nullish(),
+        questionItem: zod
+          .object({
+            question: zod.object({
+              questionId: zod.string(),
+              required: zod.boolean(),
+              choiceQuestion: zod
+                .object({
+                  type: zod.enum(["RADIO", "CHECKBOX", "DROP_DOWN"]),
+                  options: zod.array(zod.string()),
+                })
+                .optional(),
+              textQuestion: zod
+                .object({
+                  paragraph: zod.boolean(),
+                })
+                .optional(),
+              dateQuestion: zod.object({}).passthrough().optional(),
+              timeQuestion: zod.object({}).passthrough().optional(),
+              ratingQuestion: zod
+                .object({
+                  maxRating: zod.number(),
+                })
+                .optional(),
+              fileQuestion: zod
+                .object({
+                  maxFiles: zod.number().optional(),
+                  acceptedTypes: zod.array(zod.string()).optional(),
+                })
+                .optional(),
+            }),
+          })
+          .optional(),
+      }),
+    ),
+  }),
 });
 
 /**
- * @summary Update form settings
+ * @summary Update form (metadata and document)
  */
 export const UpdateFormParams = zod.object({
   id: zod.coerce.string(),
@@ -146,6 +241,53 @@ export const UpdateFormBody = zod.object({
   supportedLanguages: zod.array(zod.string()).optional(),
   responseLimit: zod.number().nullish(),
   closesAt: zod.string().nullish(),
+  documentJson: zod
+    .object({
+      info: zod.object({
+        title: zod.string(),
+        description: zod.string().nullish(),
+      }),
+      items: zod.array(
+        zod.object({
+          itemId: zod.string(),
+          title: zod.string(),
+          description: zod.string().nullish(),
+          questionItem: zod
+            .object({
+              question: zod.object({
+                questionId: zod.string(),
+                required: zod.boolean(),
+                choiceQuestion: zod
+                  .object({
+                    type: zod.enum(["RADIO", "CHECKBOX", "DROP_DOWN"]),
+                    options: zod.array(zod.string()),
+                  })
+                  .optional(),
+                textQuestion: zod
+                  .object({
+                    paragraph: zod.boolean(),
+                  })
+                  .optional(),
+                dateQuestion: zod.object({}).passthrough().optional(),
+                timeQuestion: zod.object({}).passthrough().optional(),
+                ratingQuestion: zod
+                  .object({
+                    maxRating: zod.number(),
+                  })
+                  .optional(),
+                fileQuestion: zod
+                  .object({
+                    maxFiles: zod.number().optional(),
+                    acceptedTypes: zod.array(zod.string()).optional(),
+                  })
+                  .optional(),
+              }),
+            })
+            .optional(),
+        }),
+      ),
+    })
+    .optional(),
 });
 
 export const UpdateFormResponse = zod.object({
@@ -162,6 +304,51 @@ export const UpdateFormResponse = zod.object({
   responseLimit: zod.number().nullish(),
   closesAt: zod.string().nullish(),
   createdAt: zod.string(),
+  documentJson: zod.object({
+    info: zod.object({
+      title: zod.string(),
+      description: zod.string().nullish(),
+    }),
+    items: zod.array(
+      zod.object({
+        itemId: zod.string(),
+        title: zod.string(),
+        description: zod.string().nullish(),
+        questionItem: zod
+          .object({
+            question: zod.object({
+              questionId: zod.string(),
+              required: zod.boolean(),
+              choiceQuestion: zod
+                .object({
+                  type: zod.enum(["RADIO", "CHECKBOX", "DROP_DOWN"]),
+                  options: zod.array(zod.string()),
+                })
+                .optional(),
+              textQuestion: zod
+                .object({
+                  paragraph: zod.boolean(),
+                })
+                .optional(),
+              dateQuestion: zod.object({}).passthrough().optional(),
+              timeQuestion: zod.object({}).passthrough().optional(),
+              ratingQuestion: zod
+                .object({
+                  maxRating: zod.number(),
+                })
+                .optional(),
+              fileQuestion: zod
+                .object({
+                  maxFiles: zod.number().optional(),
+                  acceptedTypes: zod.array(zod.string()).optional(),
+                })
+                .optional(),
+            }),
+          })
+          .optional(),
+      }),
+    ),
+  }),
 });
 
 /**
@@ -206,6 +393,51 @@ export const PublishFormResponse = zod.object({
     responseLimit: zod.number().nullish(),
     closesAt: zod.string().nullish(),
     createdAt: zod.string(),
+    documentJson: zod.object({
+      info: zod.object({
+        title: zod.string(),
+        description: zod.string().nullish(),
+      }),
+      items: zod.array(
+        zod.object({
+          itemId: zod.string(),
+          title: zod.string(),
+          description: zod.string().nullish(),
+          questionItem: zod
+            .object({
+              question: zod.object({
+                questionId: zod.string(),
+                required: zod.boolean(),
+                choiceQuestion: zod
+                  .object({
+                    type: zod.enum(["RADIO", "CHECKBOX", "DROP_DOWN"]),
+                    options: zod.array(zod.string()),
+                  })
+                  .optional(),
+                textQuestion: zod
+                  .object({
+                    paragraph: zod.boolean(),
+                  })
+                  .optional(),
+                dateQuestion: zod.object({}).passthrough().optional(),
+                timeQuestion: zod.object({}).passthrough().optional(),
+                ratingQuestion: zod
+                  .object({
+                    maxRating: zod.number(),
+                  })
+                  .optional(),
+                fileQuestion: zod
+                  .object({
+                    maxFiles: zod.number().optional(),
+                    acceptedTypes: zod.array(zod.string()).optional(),
+                  })
+                  .optional(),
+              }),
+            })
+            .optional(),
+        }),
+      ),
+    }),
   }),
 });
 
@@ -288,30 +520,52 @@ export const GetFormTemplateResponse = zod.object({
   isPublic: zod.boolean(),
   useCount: zod.number(),
   createdAt: zod.string(),
-  fieldCount: zod.number(),
-  fields: zod
-    .array(
+  itemCount: zod.number(),
+  documentJson: zod.object({
+    info: zod.object({
+      title: zod.string(),
+      description: zod.string().nullish(),
+    }),
+    items: zod.array(
       zod.object({
-        id: zod.string(),
-        formId: zod.string(),
-        orderIndex: zod.number(),
-        fieldType: zod.enum([
-          "short_text",
-          "long_text",
-          "single_choice",
-          "multi_choice",
-          "rating",
-          "date",
-          "email",
-          "phone",
-        ]),
-        label: zod.string(),
-        placeholder: zod.string().nullish(),
-        isRequired: zod.boolean(),
-        optionsJson: zod.array(zod.string()).nullish(),
+        itemId: zod.string(),
+        title: zod.string(),
+        description: zod.string().nullish(),
+        questionItem: zod
+          .object({
+            question: zod.object({
+              questionId: zod.string(),
+              required: zod.boolean(),
+              choiceQuestion: zod
+                .object({
+                  type: zod.enum(["RADIO", "CHECKBOX", "DROP_DOWN"]),
+                  options: zod.array(zod.string()),
+                })
+                .optional(),
+              textQuestion: zod
+                .object({
+                  paragraph: zod.boolean(),
+                })
+                .optional(),
+              dateQuestion: zod.object({}).passthrough().optional(),
+              timeQuestion: zod.object({}).passthrough().optional(),
+              ratingQuestion: zod
+                .object({
+                  maxRating: zod.number(),
+                })
+                .optional(),
+              fileQuestion: zod
+                .object({
+                  maxFiles: zod.number().optional(),
+                  acceptedTypes: zod.array(zod.string()).optional(),
+                })
+                .optional(),
+            }),
+          })
+          .optional(),
       }),
-    )
-    .optional(),
+    ),
+  }),
 });
 
 /**
@@ -340,30 +594,52 @@ export const SaveFormTemplateResponse = zod.object({
   isPublic: zod.boolean(),
   useCount: zod.number(),
   createdAt: zod.string(),
-  fieldCount: zod.number(),
-  fields: zod
-    .array(
+  itemCount: zod.number(),
+  documentJson: zod.object({
+    info: zod.object({
+      title: zod.string(),
+      description: zod.string().nullish(),
+    }),
+    items: zod.array(
       zod.object({
-        id: zod.string(),
-        formId: zod.string(),
-        orderIndex: zod.number(),
-        fieldType: zod.enum([
-          "short_text",
-          "long_text",
-          "single_choice",
-          "multi_choice",
-          "rating",
-          "date",
-          "email",
-          "phone",
-        ]),
-        label: zod.string(),
-        placeholder: zod.string().nullish(),
-        isRequired: zod.boolean(),
-        optionsJson: zod.array(zod.string()).nullish(),
+        itemId: zod.string(),
+        title: zod.string(),
+        description: zod.string().nullish(),
+        questionItem: zod
+          .object({
+            question: zod.object({
+              questionId: zod.string(),
+              required: zod.boolean(),
+              choiceQuestion: zod
+                .object({
+                  type: zod.enum(["RADIO", "CHECKBOX", "DROP_DOWN"]),
+                  options: zod.array(zod.string()),
+                })
+                .optional(),
+              textQuestion: zod
+                .object({
+                  paragraph: zod.boolean(),
+                })
+                .optional(),
+              dateQuestion: zod.object({}).passthrough().optional(),
+              timeQuestion: zod.object({}).passthrough().optional(),
+              ratingQuestion: zod
+                .object({
+                  maxRating: zod.number(),
+                })
+                .optional(),
+              fileQuestion: zod
+                .object({
+                  maxFiles: zod.number().optional(),
+                  acceptedTypes: zod.array(zod.string()).optional(),
+                })
+                .optional(),
+            }),
+          })
+          .optional(),
       }),
-    )
-    .optional(),
+    ),
+  }),
 });
 
 /**
@@ -371,118 +647,6 @@ export const SaveFormTemplateResponse = zod.object({
  */
 export const RemoveFormTemplateParams = zod.object({
   id: zod.coerce.string(),
-});
-
-/**
- * @summary List all fields for a form
- */
-export const ListFormFieldsParams = zod.object({
-  id: zod.coerce.string(),
-});
-
-export const ListFormFieldsResponseItem = zod.object({
-  id: zod.string(),
-  formId: zod.string(),
-  orderIndex: zod.number(),
-  fieldType: zod.enum([
-    "short_text",
-    "long_text",
-    "single_choice",
-    "multi_choice",
-    "rating",
-    "date",
-    "email",
-    "phone",
-  ]),
-  label: zod.string(),
-  placeholder: zod.string().nullish(),
-  isRequired: zod.boolean(),
-  optionsJson: zod.array(zod.string()).nullish(),
-});
-export const ListFormFieldsResponse = zod.array(ListFormFieldsResponseItem);
-
-/**
- * @summary Add a new field to a form
- */
-export const CreateFormFieldParams = zod.object({
-  id: zod.coerce.string(),
-});
-
-export const CreateFormFieldBody = zod.object({
-  fieldType: zod.enum([
-    "short_text",
-    "long_text",
-    "single_choice",
-    "multi_choice",
-    "rating",
-    "date",
-    "email",
-    "phone",
-  ]),
-  label: zod.string(),
-  placeholder: zod.string().nullish(),
-  isRequired: zod.boolean(),
-  optionsJson: zod.array(zod.string()).nullish(),
-  orderIndex: zod.number().optional(),
-});
-
-/**
- * @summary Reorder fields in a form
- */
-export const ReorderFieldsParams = zod.object({
-  id: zod.coerce.string(),
-});
-
-export const ReorderFieldsBody = zod.object({
-  fieldIds: zod.array(zod.string()),
-});
-
-export const ReorderFieldsResponse = zod.object({
-  success: zod.boolean().optional(),
-});
-
-/**
- * @summary Update a specific field
- */
-export const UpdateFormFieldParams = zod.object({
-  id: zod.coerce.string(),
-  fieldId: zod.coerce.string(),
-});
-
-export const UpdateFormFieldBody = zod.object({
-  label: zod.string().optional(),
-  placeholder: zod.string().nullish(),
-  isRequired: zod.boolean().optional(),
-  optionsJson: zod.array(zod.string()).nullish(),
-  orderIndex: zod.number().optional(),
-});
-
-export const UpdateFormFieldResponse = zod.object({
-  id: zod.string(),
-  formId: zod.string(),
-  orderIndex: zod.number(),
-  fieldType: zod.enum([
-    "short_text",
-    "long_text",
-    "single_choice",
-    "multi_choice",
-    "rating",
-    "date",
-    "email",
-    "phone",
-  ]),
-  label: zod.string(),
-  placeholder: zod.string().nullish(),
-  isRequired: zod.boolean(),
-  optionsJson: zod.array(zod.string()).nullish(),
-});
-
-/**
- * @summary Delete a field
- */
-export const DeleteFormFieldParams = zod.object({
-  id: zod.coerce.string(),
-  fieldId: zod.coerce.string(),
 });
 
 /**
@@ -503,30 +667,52 @@ export const ListTemplatesResponseItem = zod.object({
   isPublic: zod.boolean(),
   useCount: zod.number(),
   createdAt: zod.string(),
-  fieldCount: zod.number(),
-  fields: zod
-    .array(
+  itemCount: zod.number(),
+  documentJson: zod.object({
+    info: zod.object({
+      title: zod.string(),
+      description: zod.string().nullish(),
+    }),
+    items: zod.array(
       zod.object({
-        id: zod.string(),
-        formId: zod.string(),
-        orderIndex: zod.number(),
-        fieldType: zod.enum([
-          "short_text",
-          "long_text",
-          "single_choice",
-          "multi_choice",
-          "rating",
-          "date",
-          "email",
-          "phone",
-        ]),
-        label: zod.string(),
-        placeholder: zod.string().nullish(),
-        isRequired: zod.boolean(),
-        optionsJson: zod.array(zod.string()).nullish(),
+        itemId: zod.string(),
+        title: zod.string(),
+        description: zod.string().nullish(),
+        questionItem: zod
+          .object({
+            question: zod.object({
+              questionId: zod.string(),
+              required: zod.boolean(),
+              choiceQuestion: zod
+                .object({
+                  type: zod.enum(["RADIO", "CHECKBOX", "DROP_DOWN"]),
+                  options: zod.array(zod.string()),
+                })
+                .optional(),
+              textQuestion: zod
+                .object({
+                  paragraph: zod.boolean(),
+                })
+                .optional(),
+              dateQuestion: zod.object({}).passthrough().optional(),
+              timeQuestion: zod.object({}).passthrough().optional(),
+              ratingQuestion: zod
+                .object({
+                  maxRating: zod.number(),
+                })
+                .optional(),
+              fileQuestion: zod
+                .object({
+                  maxFiles: zod.number().optional(),
+                  acceptedTypes: zod.array(zod.string()).optional(),
+                })
+                .optional(),
+            }),
+          })
+          .optional(),
       }),
-    )
-    .optional(),
+    ),
+  }),
 });
 export const ListTemplatesResponse = zod.array(ListTemplatesResponseItem);
 
@@ -544,30 +730,52 @@ export const ListMyTemplatesResponseItem = zod.object({
   isPublic: zod.boolean(),
   useCount: zod.number(),
   createdAt: zod.string(),
-  fieldCount: zod.number(),
-  fields: zod
-    .array(
+  itemCount: zod.number(),
+  documentJson: zod.object({
+    info: zod.object({
+      title: zod.string(),
+      description: zod.string().nullish(),
+    }),
+    items: zod.array(
       zod.object({
-        id: zod.string(),
-        formId: zod.string(),
-        orderIndex: zod.number(),
-        fieldType: zod.enum([
-          "short_text",
-          "long_text",
-          "single_choice",
-          "multi_choice",
-          "rating",
-          "date",
-          "email",
-          "phone",
-        ]),
-        label: zod.string(),
-        placeholder: zod.string().nullish(),
-        isRequired: zod.boolean(),
-        optionsJson: zod.array(zod.string()).nullish(),
+        itemId: zod.string(),
+        title: zod.string(),
+        description: zod.string().nullish(),
+        questionItem: zod
+          .object({
+            question: zod.object({
+              questionId: zod.string(),
+              required: zod.boolean(),
+              choiceQuestion: zod
+                .object({
+                  type: zod.enum(["RADIO", "CHECKBOX", "DROP_DOWN"]),
+                  options: zod.array(zod.string()),
+                })
+                .optional(),
+              textQuestion: zod
+                .object({
+                  paragraph: zod.boolean(),
+                })
+                .optional(),
+              dateQuestion: zod.object({}).passthrough().optional(),
+              timeQuestion: zod.object({}).passthrough().optional(),
+              ratingQuestion: zod
+                .object({
+                  maxRating: zod.number(),
+                })
+                .optional(),
+              fileQuestion: zod
+                .object({
+                  maxFiles: zod.number().optional(),
+                  acceptedTypes: zod.array(zod.string()).optional(),
+                })
+                .optional(),
+            }),
+          })
+          .optional(),
       }),
-    )
-    .optional(),
+    ),
+  }),
 });
 export const ListMyTemplatesResponse = zod.array(ListMyTemplatesResponseItem);
 
@@ -593,27 +801,51 @@ export const GetPublicFormResponse = zod.object({
   slug: zod.string(),
   originalLanguage: zod.string(),
   supportedLanguages: zod.array(zod.string()),
-  fields: zod.array(
-    zod.object({
-      id: zod.string(),
-      formId: zod.string(),
-      orderIndex: zod.number(),
-      fieldType: zod.enum([
-        "short_text",
-        "long_text",
-        "single_choice",
-        "multi_choice",
-        "rating",
-        "date",
-        "email",
-        "phone",
-      ]),
-      label: zod.string(),
-      placeholder: zod.string().nullish(),
-      isRequired: zod.boolean(),
-      optionsJson: zod.array(zod.string()).nullish(),
+  documentJson: zod.object({
+    info: zod.object({
+      title: zod.string(),
+      description: zod.string().nullish(),
     }),
-  ),
+    items: zod.array(
+      zod.object({
+        itemId: zod.string(),
+        title: zod.string(),
+        description: zod.string().nullish(),
+        questionItem: zod
+          .object({
+            question: zod.object({
+              questionId: zod.string(),
+              required: zod.boolean(),
+              choiceQuestion: zod
+                .object({
+                  type: zod.enum(["RADIO", "CHECKBOX", "DROP_DOWN"]),
+                  options: zod.array(zod.string()),
+                })
+                .optional(),
+              textQuestion: zod
+                .object({
+                  paragraph: zod.boolean(),
+                })
+                .optional(),
+              dateQuestion: zod.object({}).passthrough().optional(),
+              timeQuestion: zod.object({}).passthrough().optional(),
+              ratingQuestion: zod
+                .object({
+                  maxRating: zod.number(),
+                })
+                .optional(),
+              fileQuestion: zod
+                .object({
+                  maxFiles: zod.number().optional(),
+                  acceptedTypes: zod.array(zod.string()).optional(),
+                })
+                .optional(),
+            }),
+          })
+          .optional(),
+      }),
+    ),
+  }),
   translations: zod.array(
     zod.object({
       id: zod.string(),
@@ -652,30 +884,52 @@ export const GenerateFormBody = zod.object({
 
 export const GenerateFormResponse = zod.object({
   form: zod.object({
-    title: zod.string(),
-    description: zod.string().nullish(),
-    featureImageUrl: zod.string().nullish(),
-    fields: zod.array(
+    info: zod.object({
+      title: zod.string(),
+      description: zod.string().nullish(),
+    }),
+    items: zod.array(
       zod.object({
-        fieldType: zod.enum([
-          "short_text",
-          "long_text",
-          "single_choice",
-          "multi_choice",
-          "rating",
-          "date",
-          "email",
-          "phone",
-        ]),
-        label: zod.string(),
-        placeholder: zod.string().nullish(),
-        isRequired: zod.boolean(),
-        optionsJson: zod.array(zod.string()).nullish(),
-        orderIndex: zod.number().optional(),
+        itemId: zod.string(),
+        title: zod.string(),
+        description: zod.string().nullish(),
+        questionItem: zod
+          .object({
+            question: zod.object({
+              questionId: zod.string(),
+              required: zod.boolean(),
+              choiceQuestion: zod
+                .object({
+                  type: zod.enum(["RADIO", "CHECKBOX", "DROP_DOWN"]),
+                  options: zod.array(zod.string()),
+                })
+                .optional(),
+              textQuestion: zod
+                .object({
+                  paragraph: zod.boolean(),
+                })
+                .optional(),
+              dateQuestion: zod.object({}).passthrough().optional(),
+              timeQuestion: zod.object({}).passthrough().optional(),
+              ratingQuestion: zod
+                .object({
+                  maxRating: zod.number(),
+                })
+                .optional(),
+              fileQuestion: zod
+                .object({
+                  maxFiles: zod.number().optional(),
+                  acceptedTypes: zod.array(zod.string()).optional(),
+                })
+                .optional(),
+            }),
+          })
+          .optional(),
       }),
     ),
   }),
   detectedLanguage: zod.string(),
+  featureImageUrl: zod.string().nullish(),
 });
 
 /**
@@ -701,6 +955,51 @@ export const GetDashboardSummaryResponse = zod.object({
       responseLimit: zod.number().nullish(),
       closesAt: zod.string().nullish(),
       createdAt: zod.string(),
+      documentJson: zod.object({
+        info: zod.object({
+          title: zod.string(),
+          description: zod.string().nullish(),
+        }),
+        items: zod.array(
+          zod.object({
+            itemId: zod.string(),
+            title: zod.string(),
+            description: zod.string().nullish(),
+            questionItem: zod
+              .object({
+                question: zod.object({
+                  questionId: zod.string(),
+                  required: zod.boolean(),
+                  choiceQuestion: zod
+                    .object({
+                      type: zod.enum(["RADIO", "CHECKBOX", "DROP_DOWN"]),
+                      options: zod.array(zod.string()),
+                    })
+                    .optional(),
+                  textQuestion: zod
+                    .object({
+                      paragraph: zod.boolean(),
+                    })
+                    .optional(),
+                  dateQuestion: zod.object({}).passthrough().optional(),
+                  timeQuestion: zod.object({}).passthrough().optional(),
+                  ratingQuestion: zod
+                    .object({
+                      maxRating: zod.number(),
+                    })
+                    .optional(),
+                  fileQuestion: zod
+                    .object({
+                      maxFiles: zod.number().optional(),
+                      acceptedTypes: zod.array(zod.string()).optional(),
+                    })
+                    .optional(),
+                }),
+              })
+              .optional(),
+          }),
+        ),
+      }),
     }),
   ),
   weeklyTrend: zod.array(

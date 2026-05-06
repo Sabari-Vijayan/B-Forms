@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 
 import { EditorHeader } from "@/components/editor/EditorHeader";
-import { FieldList } from "@/components/editor/FieldList";
+import { ItemList } from "@/components/editor/ItemList";
 import { FormSettings } from "@/components/editor/FormSettings";
 import { AnalyticsDashboard } from "@/components/editor/AnalyticsDashboard";
 import { ResponsesTab } from "@/components/editor/ResponsesTab";
@@ -18,16 +18,13 @@ import { ResponseDrawer } from "@/components/editor/ResponseDrawer";
 
 import { 
   useGetForm, 
-  useListFormFields, 
   useListSubmissions,
   useUpdateForm,
-  useCreateFormField,
-  useUpdateFormField,
-  useDeleteFormField,
-  useReorderFields,
   useDeleteForm,
   usePublishForm,
-  Form
+  FormWithDocument,
+  FormDocument,
+  Item
 } from "@workspace/api-client-react";
 
 import { 
@@ -51,7 +48,6 @@ export default function FormEditor() {
 
   // Queries
   const { data: form, isLoading: isFormLoading } = useGetForm(id!, { query: { enabled: !!id, queryKey: [`/api/forms/${id}`] } });
-  const { data: fields, isLoading: isFieldsLoading } = useListFormFields(id!, { query: { enabled: !!id, queryKey: [`/api/forms/${id}/fields`] } });
   const { data: submissions, isLoading: isSubmissionsLoading, dataUpdatedAt } = useListSubmissions(id!, {
     query: { 
       enabled: !!id, 
@@ -62,113 +58,122 @@ export default function FormEditor() {
 
   // Mutations
   const updateForm = useUpdateForm();
-  const createField = useCreateFormField();
-  const updateField = useUpdateFormField();
-  const deleteField = useDeleteFormField();
-  const reorderFields = useReorderFields();
   const deleteFormMutation = useDeleteForm();
   const publishForm = usePublishForm();
 
   // State Management
-  const [orderedIds, setOrderedIds] = useState<string[]>([]);
-  const [fieldDrafts, setFieldDrafts] = useState<Record<string, any>>({});
-  const [formDraft, setFormDraft] = useState<Partial<Form>>({});
-  const [savingFieldId, setSavingFieldId] = useState<string | null>(null);
+  const [documentDraft, setDocumentDraft] = useState<FormDocument | null>(null);
+  const [metadataDraft, setMetadataDraft] = useState<Partial<FormWithDocument>>({});
   const [isUpdatingForm, setIsUpdatingForm] = useState(false);
 
-  // Sync orderedIds
+  // Sync draft from loaded data
   useEffect(() => {
-    if (fields) {
-      setOrderedIds(fields.slice().sort((a, b) => a.orderIndex - b.orderIndex).map(f => f.id));
+    if (form && !documentDraft) {
+      setDocumentDraft(form.documentJson);
     }
-  }, [fields]);
+  }, [form]);
 
-  const handlePatchDraft = (fieldId: string, updates: any) => {
-    setFieldDrafts(prev => ({ ...prev, [fieldId]: { ...(prev[fieldId] || {}), ...updates } }));
+  const handleUpdateDocument = (updates: Partial<FormDocument>) => {
+    setDocumentDraft(prev => prev ? { ...prev, ...updates } : null);
   };
 
-  const handleUpdateFormDraft = (updates: Partial<Form>) => {
-    setFormDraft(prev => ({ ...prev, ...updates }));
+  const handleUpdateMetadata = (updates: Partial<FormWithDocument>) => {
+    setMetadataDraft(prev => ({ ...prev, ...updates }));
   };
 
-  const isFormDirty = () => {
-    if (!form) return false;
-    return Object.keys(formDraft).some(key => {
-      const draftVal = (formDraft as any)[key];
+  const isDirty = () => {
+    if (!form || !documentDraft) return false;
+    const documentChanged = JSON.stringify(documentDraft) !== JSON.stringify(form.documentJson);
+    const metadataChanged = Object.keys(metadataDraft).some(key => {
+      const draftVal = (metadataDraft as any)[key];
       const originalVal = (form as any)[key];
-      if (Array.isArray(draftVal)) return JSON.stringify(draftVal) !== JSON.stringify(originalVal);
       return draftVal !== originalVal;
     });
+    return documentChanged || metadataChanged;
   };
 
-  const isFieldDirty = (field: any) => {
-    const draft = fieldDrafts[field.id];
-    if (!draft) return false;
-    return Object.keys(draft).some(key => {
-        const val = draft[key];
-        const original = (field as any)[key];
-        if (Array.isArray(val)) return JSON.stringify(val) !== JSON.stringify(original);
-        return val !== original;
-    });
-  };
-
-  const handleSaveField = async (fieldId: string) => {
-    const draft = fieldDrafts[fieldId];
-    setSavingFieldId(fieldId);
-    try {
-      await updateField.mutateAsync({ id: id!, fieldId, data: draft });
-      queryClient.invalidateQueries({ queryKey: [`/api/forms/${id}/fields`] });
-      toast({ title: "Success", description: "Field saved" });
-      // Remove draft for this field
-      setFieldDrafts(prev => {
-        const next = { ...prev };
-        delete next[fieldId];
-        return next;
-      });
-    } catch {
-      toast({ title: "Error", description: "Failed to save field", variant: "destructive" });
-    } finally {
-      setSavingFieldId(null);
-    }
-  };
-
-  const handleAddField = async (type: string) => {
-    try {
-      await createField.mutateAsync({
-        id: id!,
-        data: {
-          fieldType: type as any,
-          label: "New Field",
-          isRequired: false,
-          orderIndex: orderedIds.length,
-          placeholder: "",
-          optionsJson: (type === 'single_choice' || type === 'multi_choice') ? ["Option 1"] : null
-        }
-      });
-      queryClient.invalidateQueries({ queryKey: [`/api/forms/${id}/fields`] });
-      toast({ title: "Success", description: "Field added" });
-    } catch {
-      toast({ title: "Error", description: "Failed to add field", variant: "destructive" });
-    }
-  };
-
-  const handleUpdateForm = async (updates: any) => {
-    if (Object.keys(updates).length === 0) {
-      toast({ title: "No changes", description: "There are no changes to save." });
-      return;
-    }
+  const handleSave = async () => {
+    if (!documentDraft) return;
 
     setIsUpdatingForm(true);
     try {
-      await updateForm.mutateAsync({ id: id!, data: updates });
+      const title = documentDraft.info?.title || (documentDraft as any).title || "Untitled Form";
+      const description = documentDraft.info?.description || (documentDraft as any).description || null;
+
+      await updateForm.mutateAsync({ 
+        id: id!, 
+        data: { 
+          ...metadataDraft,
+          title,
+          description,
+          documentJson: documentDraft 
+        } 
+      });
       queryClient.invalidateQueries({ queryKey: [`/api/forms/${id}`] });
-      setFormDraft({});
-      toast({ title: "Success", description: "Form updated" });
+      setMetadataDraft({});
+      toast({ title: "Success", description: "Form saved" });
     } catch {
-      toast({ title: "Error", description: "Failed to update form", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to save form", variant: "destructive" });
     } finally {
       setIsUpdatingForm(false);
     }
+  };
+
+  const handleAddItem = (type: string) => {
+    if (!documentDraft) return;
+
+    let newItem: Item;
+    
+    if (type === 'INFO_PARAGRAPH') {
+      newItem = {
+        itemId: crypto.randomUUID(),
+        title: "Info Section",
+        description: "Your informational text here.",
+      };
+    } else {
+      newItem = {
+        itemId: crypto.randomUUID(),
+        title: type === 'FILE' ? "Upload Image" : "New Question",
+        description: "",
+        questionItem: {
+          question: {
+            questionId: crypto.randomUUID(),
+            required: false,
+            ...(type === 'RADIO' || type === 'CHECKBOX' || type === 'DROP_DOWN' ? {
+              choiceQuestion: { type: type as any, options: ["Option 1"] }
+            } : type === 'RATING' ? {
+              ratingQuestion: { maxRating: 5 }
+            } : type === 'FILE' ? {
+              fileQuestion: { maxFiles: 1, acceptedTypes: ["image/*"] }
+            } : {
+              textQuestion: { paragraph: type === 'LONG_TEXT' }
+            })
+          }
+        }
+      };
+    }
+
+    handleUpdateDocument({
+      items: [...(documentDraft.items || []), newItem]
+    });
+  };
+
+  const handleReorderItems = (newItems: Item[]) => {
+    handleUpdateDocument({ items: newItems });
+  };
+
+  const handleUpdateItem = (itemId: string, updates: Partial<Item>) => {
+    if (!documentDraft) return;
+    const newItems = documentDraft.items.map(item => 
+      item.itemId === itemId ? { ...item, ...updates } : item
+    );
+    handleUpdateDocument({ items: newItems });
+  };
+
+  const handleDeleteItem = (itemId: string) => {
+    if (!documentDraft) return;
+    const newItems = documentDraft.items.filter(item => item.itemId !== itemId);
+    handleUpdateDocument({ items: newItems });
   };
 
   const handlePublishForm = async () => {
@@ -184,13 +189,36 @@ export default function FormEditor() {
     }
   };
 
-  if (isFormLoading || isFieldsLoading) {
+  if (isFormLoading) {
     return <DashboardLayout><div className="flex justify-center p-12"><Loader2 className="animate-spin" /></div></DashboardLayout>;
   }
 
-  if (!form) return <DashboardLayout>Form not found</DashboardLayout>;
+  if (!form || !documentDraft) return <DashboardLayout>Form not found</DashboardLayout>;
 
-  const currentForm = { ...form, ...formDraft };
+  const currentForm = { ...form, ...metadataDraft, documentJson: documentDraft };
+  const fields = (documentDraft.items || []).map(item => {
+    const q = item.questionItem?.question;
+    let type = 'paragraph';
+    if (q) {
+      if (q.choiceQuestion) {
+        type = q.choiceQuestion.type === 'CHECKBOX' ? 'multi_choice' : 'single_choice';
+      } else if (q.ratingQuestion) {
+        type = 'rating';
+      } else if (q.textQuestion?.paragraph) {
+        type = 'long_text';
+      } else if (q.fileQuestion) {
+        type = 'image_upload';
+      } else {
+        type = 'short_text';
+      }
+    }
+    
+    return {
+      id: item.itemId,
+      label: item.title,
+      fieldType: type,
+    };
+  });
 
   return (
     <DashboardLayout>
@@ -242,40 +270,38 @@ export default function FormEditor() {
                 transition={{ duration: 0.2, ease: "easeOut" }}
               >
                 <TabsContent value="fields" className="mt-0 space-y-4 outline-none">
-                  <FieldList 
-                    fields={fields || []}
-                    orderedIds={orderedIds}
-                    fieldDrafts={fieldDrafts}
-                    savingFieldId={savingFieldId}
-                    onReorder={async (newIds) => {
-                      setOrderedIds(newIds);
-                      await reorderFields.mutateAsync({ id: id!, data: { fieldIds: newIds } });
-                      queryClient.invalidateQueries({ queryKey: [`/api/forms/${id}/fields`] });
-                    }}
-                    onPatchDraft={handlePatchDraft}
-                    onSaveField={handleSaveField}
-                    onDeleteField={async (fid) => {
-                      await deleteField.mutateAsync({ id: id!, fieldId: fid });
-                      queryClient.invalidateQueries({ queryKey: [`/api/forms/${id}/fields`] });
-                    }}
-                    isDirty={isFieldDirty}
+                  <div className="flex justify-end">
+                    <Button 
+                      onClick={handleSave} 
+                      disabled={!isDirty() || isUpdatingForm}
+                      className="shadow-sm"
+                    >
+                      {isUpdatingForm ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : "Save Changes"}
+                    </Button>
+                  </div>
+
+                  <ItemList 
+                    items={documentDraft.items || []}
+                    onReorder={handleReorderItems}
+                    onUpdateItem={handleUpdateItem}
+                    onDeleteItem={handleDeleteItem}
                   />
                   
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" className="w-full border-dashed">
+                      <Button variant="outline" className="w-full border-dashed py-6 text-muted-foreground hover:text-foreground">
                         <Plus className="w-4 h-4 mr-2" />Add Field
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-56">
-                      <DropdownMenuItem onClick={() => handleAddField('short_text')}>Short Text</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleAddField('long_text')}>Long Text</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleAddField('single_choice')}>Single Choice</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleAddField('multi_choice')}>Multiple Choice</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleAddField('rating')}>Rating</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleAddField('date')}>Date</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleAddField('email')}>Email</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleAddField('phone')}>Phone</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleAddItem('SHORT_TEXT')}>Short Answer</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleAddItem('LONG_TEXT')}>Paragraph Answer</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleAddItem('RADIO')}>Multiple Choice</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleAddItem('CHECKBOX')}>Checkboxes</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleAddItem('DROP_DOWN')}>Dropdown</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleAddItem('RATING')}>Rating</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleAddItem('FILE')}>Image Upload</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleAddItem('INFO_PARAGRAPH')}>Info Paragraph</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TabsContent>
@@ -289,9 +315,9 @@ export default function FormEditor() {
                     preferredLanguage={currentForm.preferredLanguage || ""}
                     originalLanguage={form.originalLanguage}
                     isSaving={isUpdatingForm}
-                    isDirty={isFormDirty()}
-                    onUpdate={handleUpdateFormDraft}
-                    onSave={() => handleUpdateForm(formDraft)}
+                    isDirty={isDirty()}
+                    onUpdate={handleUpdateMetadata}
+                    onSave={handleSave}
                   />
                 </TabsContent>
 

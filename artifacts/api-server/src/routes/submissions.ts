@@ -7,7 +7,7 @@ const router = Router();
 
 router.get("/forms/:id/submissions", requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
-    const submissions = await SubmissionsService.getFormSubmissions(req.accessToken, req.params.id);
+    const submissions = await SubmissionsService.getFormSubmissions(req.accessToken!, req.params.id as string);
     res.json(submissions);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
