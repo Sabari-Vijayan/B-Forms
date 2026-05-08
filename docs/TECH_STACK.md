@@ -14,7 +14,7 @@ We use a modern, type-safe stack designed for speed and scalability.
 * **Framework**: Express 5
 * **Language**: TypeScript
 * **Logging**: Pino / pino-http
-* **AI SDK**: @google/generative-ai
+* **AI Engine**: NVIDIA NIM (moonshotai/kimi-k2.6 via native Fetch)
 * **Validation**: Zod (via generated schemas)
 
 ## 🗄️ Database & Auth
