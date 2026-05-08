@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/server/supabase";
-import { nanoid } from "@/lib/server/nanoid";
+import { generateId } from "@/lib/server/nanoid";
 import { logger } from "@/lib/server/logger";
 
 export async function POST(req: NextRequest) {
@@ -18,10 +18,10 @@ export async function POST(req: NextRequest) {
 
     const admin = createAdminClient();
     const fileExt = file.name.split(".").pop();
-    const fileName = `${nanoid()}.${fileExt}`;
+    const fileName = `${generateId()}.${fileExt}`;
     const filePath = `uploads/${fileName}`;
 
-    const { data, error } = await admin.storage
+    const { error } = await admin.storage
       .from("form-attachments")
       .upload(filePath, Buffer.from(await file.arrayBuffer()), {
         contentType: file.type,

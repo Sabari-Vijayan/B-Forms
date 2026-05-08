@@ -18,15 +18,15 @@ export async function POST(req: NextRequest) {
     const detectedLanguage = language || await detectLanguage(prompt);
     const result = await FormsGenerator.generateForm(prompt, detectedLanguage);
 
-    let rawItems = Array.isArray(result.items) 
+    const rawItems = Array.isArray(result.items) 
       ? result.items 
-      : (Array.isArray((result as any).fields) 
-        ? (result as any).fields 
+      : (Array.isArray((result as Record<string, unknown>).fields) 
+        ? (result as Record<string, unknown>).fields 
         : (Array.isArray((result as any).form?.items) 
           ? (result as any).form?.items 
           : (Array.isArray((result as any).form?.fields) 
             ? (result as any).form?.fields 
-            : [])));
+            : []))) as any[];
 
     const items = rawItems.map((item: any) => {
       if (item.questionItem) return item;
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
       const description = item.description || item.placeholder || "";
       const required = !!(item.required || item.is_required);
       
-      const question: any = {
+      const question: Record<string, unknown> = {
         questionId: item.questionId || Math.random().toString(36).substring(7),
         required
       };
@@ -64,8 +64,8 @@ export async function POST(req: NextRequest) {
 
     const formDocument = {
       info: {
-        title: result.info?.title || (result as any).title || (result as any).form?.title || "Untitled Form",
-        description: result.info?.description || (result as any).description || (result as any).form?.description || ""
+        title: result.info?.title || (result as Record<string, any>).title || (result as any).form?.title || "Untitled Form",
+        description: result.info?.description || (result as Record<string, any>).description || (result as any).form?.description || ""
       },
       items: items
     };
@@ -77,8 +77,9 @@ export async function POST(req: NextRequest) {
       detectedLanguage,
       featureImageUrl
     });
-  } catch (error: any) {
-    logger.error({ error: error.message }, "AI Generation failed");
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "AI Generation failed";
+    logger.error({ error: message }, "AI Generation failed");
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
