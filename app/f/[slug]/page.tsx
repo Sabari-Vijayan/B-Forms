@@ -10,9 +10,10 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Globe, Star, Download, Image as ImageIcon, Upload, X } from "lucide-react";
+import { Loader2, Globe, Star, Download, Image as ImageIcon, Upload, X, Info } from "lucide-react";
 import { toast } from "sonner";
 import { SUPPORTED_LANGUAGES } from "@/lib/constants";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import confetti from "canvas-confetti";
 
 function StarRating({ value, onChange, required }: { value: number; onChange: (v: number) => void; required?: boolean }) {
@@ -51,16 +52,29 @@ function StarRating({ value, onChange, required }: { value: number; onChange: (v
 
 export default function PublicFormPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
-  const { data: form, isLoading, error } = useGetPublicForm(slug);
-  const submitForm = useSubmitForm(slug);
-
+  
   const [selectedLang, setSelectedLang] = useState<string>("");
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSwitchingLanguage, setIsSwitchingLanguage] = useState(false);
   const [uploadingField, setUploadingField] = useState<string | null>(null);
+  const [refetchInterval, setRefetchInterval] = useState<number | false>(false);
+
+  const { data: form, isLoading, error } = useGetPublicForm(slug, refetchInterval);
+  const submitForm = useSubmitForm(slug);
 
   const searchParams = useSearchParams();
+
+  const normalizeLang = (lang: string) => lang.toLowerCase().split("-")[0];
+
+  useEffect(() => {
+    if (form && selectedLang) {
+      const isMissing = selectedLang !== form.originalLanguage && 
+                        form.supportedLanguages.includes(selectedLang) &&
+                        !form.translations?.some((tr: any) => normalizeLang(tr.language) === normalizeLang(selectedLang));
+      setRefetchInterval(isMissing ? 3000 : false);
+    }
+  }, [form, selectedLang]);
 
   useEffect(() => {
     if (searchParams.get("print") === "1" && form && !isLoading) {
@@ -71,8 +85,6 @@ export default function PublicFormPage({ params }: { params: Promise<{ slug: str
     }
     return undefined;
   }, [searchParams, form, isLoading]);
-
-  const normalizeLang = (lang: string) => lang.toLowerCase().split("-")[0];
 
   useEffect(() => {
     if (form && !selectedLang) {
@@ -126,6 +138,7 @@ export default function PublicFormPage({ params }: { params: Promise<{ slug: str
 
   const title = t.title || form.title;
   const description = t.description || form.description;
+  const isTranslating = !!refetchInterval;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -206,6 +219,16 @@ export default function PublicFormPage({ params }: { params: Promise<{ slug: str
   return (
     <div className="min-h-screen bg-muted/10 py-12 px-4 print:bg-white print:py-0 print:px-0" lang={selectedLang}>
       <div className="max-w-2xl mx-auto print:max-w-none print:m-0 print:p-[0.75in]">
+        {isTranslating && (
+          <Alert className="mb-6 bg-blue-50/50 border-blue-200/50 text-blue-800 animate-in fade-in slide-in-from-top-4">
+            <Info className="h-4 w-4 text-blue-600" />
+            <AlertTitle className="text-blue-900 font-semibold">Translation in progress</AlertTitle>
+            <AlertDescription className="text-blue-700/80">
+              The AI is currently translating this form to <strong>{SUPPORTED_LANGUAGES.find(l => l.code === selectedLang)?.name || selectedLang}</strong>. 
+              The form is currently falling back to its original language and will update automatically once the translation is ready.
+            </AlertDescription>
+          </Alert>
+        )}
         <div className="flex justify-end mb-4 print:hidden">
           <div className="flex items-center gap-2 bg-background/95 border border-border/70 rounded-md px-3 py-1.5 shadow-sm">
             <Globe className="w-4 h-4 text-muted-foreground" />

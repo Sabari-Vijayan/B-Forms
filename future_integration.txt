@@ -1,0 +1,8 @@
+  1. AI Sentiment & Summary ($): Don't just show a table of 1,000 responses. Charge an extra fee for
+      an "AI Report" that tells the user: "70% of your customers are unhappy with the pricing; here
+      are the top 3 suggestions they made."
+   2. AI Auto-Responder ($$): When someone fills out the form, your AI generates a personalized email
+      response based on their specific answers. (e.g., "Hi John, I saw you're interested in Florida
+      real estate but worried about taxes. Here is a PDF on Florida tax law...")
+   3. CRM Enrichment ($$$): Use AI to look up the person who filled out the form (via LinkedIn/Web)
+      and add their company size, job title, and recent news to the submission data

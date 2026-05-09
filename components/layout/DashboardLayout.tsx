@@ -3,10 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useGetMe } from "@/hooks/use-auth";
-import { logout } from "@/lib/auth";
-import { LogOut, LayoutDashboard, Plus, LayoutTemplate, User, ChevronLeft, ChevronRight } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useGetMe, useLogout } from "@/hooks/use-auth";
+import { LogOut, LayoutDashboard, Plus, LayoutTemplate, User, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { LogoIcon } from "@/components/Logo";
 
 interface DashboardLayoutProps {
@@ -16,8 +14,8 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const queryClient = useQueryClient();
   const { data: user, isLoading, error } = useGetMe();
+  const logout = useLogout();
 
   const [isCollapsed, setIsCollapsed] = useState(() => {
     if (typeof window !== "undefined") {
@@ -36,12 +34,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       router.push(`/login?redirect=${encodeURIComponent(intended)}`);
     }
   }, [user, isLoading, error, router, pathname]);
-
-  const handleLogout = async () => {
-    try { await logout(); } catch {}
-    queryClient.clear();
-    router.push("/login");
-  };
 
   if (isLoading) {
     return (
@@ -133,16 +125,21 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               {user.email}
             </p>
             <button
-              onClick={handleLogout}
+              onClick={() => logout.mutate()}
+              disabled={logout.isPending}
               className={`flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors w-full group relative ${isCollapsed ? "justify-center px-0 py-2 gap-0" : "px-3 py-2 gap-2.5"}`}
             >
-              <LogOut className="w-4 h-4 shrink-0" />
+              {logout.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+              ) : (
+                <LogOut className="w-4 h-4 shrink-0" />
+              )}
               <span className={`transition-opacity duration-300 ${isCollapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100"}`}>
-                Sign Out
+                {logout.isPending ? "Signing Out..." : "Sign Out"}
               </span>
               {isCollapsed && (
                 <div className="absolute left-14 bg-foreground text-background text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
-                  Sign Out
+                  {logout.isPending ? "Signing Out..." : "Sign Out"}
                 </div>
               )}
             </button>

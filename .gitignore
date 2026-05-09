@@ -50,3 +50,6 @@ Thumbs.db
 
 /artifacts/api-server/.env
 /artifacts/prompt-to-form/.env
+
+# Next.js
+.next/

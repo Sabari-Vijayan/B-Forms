@@ -1,0 +1,157 @@
+> Critically evaluate this project and its architecture
+
+● I'll thoroughly explore and analyze your project's architecture to provide a critical evaluation.
+
+● Explore(Analyze project architecture)
+  ⎿  Done (50 tool uses · 85.0k tokens · 3m 27s)
+
+● Critical Architecture Evaluation: Asset-Builder (Prompt-to-Form)
+
+  I've completed a comprehensive analysis of your codebase. Here's my critical evaluation:
+
+  ---
+  Overall Grade: B- (Functional MVP with Production Risks)
+
+  🏗️ Architecture Overview
+
+  Type: Next.js 15 AI-powered multilingual form builder
+  Pattern: Service-SQL separation with in-memory caching
+  Stack: React 19, TypeScript, Supabase, NVIDIA NIM AI
+  Codebase: ~25K lines of TypeScript
+
+  ---
+  🔴 CRITICAL ISSUES (Must Fix)
+
+  1. Build Safety Disabled (next.config.mjs:10-11)
+
+  eslint: { ignoreDuringBuilds: true },
+  typescript: { ignoreBuildErrors: true }
+  Impact: You're shipping broken code to production. This masks type errors and linting issues.
+
+  2. Insecure Authentication (lib/auth.ts:4-12)
+
+  localStorage.setItem(TOKEN_KEY, token)  // Vulnerable to XSS
+  - Not using Supabase's built-in session management
+  - No httpOnly cookies
+  - Token never expires on client side
+
+  3. Zero Test Coverage
+
+  No test files exist outside node_modules. Critical flows (form creation, AI generation, submission processing) are completely untested.
+
+  4. Missing Rate Limiting
+
+  The /api/ai/generate endpoint has no protection against:
+  - API credit draining
+  - DoS attacks
+  - Abuse
+
+  5. Architectural Documentation Mismatch
+
+  Your ARCHITECTURE.md describes a "Service-Worker-SQL" pattern, but the Worker layer doesn't exist. AI processing blocks the request thread instead of running in background jobs.
+
+  ---
+  🟡 MAJOR CONCERNS
+
+  Code Quality Issues:
+
+  Error Swallowing (lib/auth.ts:42)
+  try {
+    await customFetch("/api/auth/logout", { method: "POST" });
+  } catch {}  // Silent failure - user never knows logout failed
+
+  Brittle AI Parsing (lib/server/ai.ts:116-125)
+  // Regex fallback because AI returns inconsistent JSON
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  Should use Zod validation with structured AI output.
+
+  Admin Client Overuse (lib/server/modules/forms/forms.sql.ts)
+  Using admin clients bypasses Row Level Security - negates your security model.
+
+  Large God Components
+  - app/f/[slug]/page.tsx: 471 lines handling routing, rendering, validation, error states
+  - app/forms/[id]/page.tsx: 362 lines mixing tabs, editing, drafts, publishing, analytics
+
+  Database Issues:
+
+  1. No JSON validation constraints on forms.document_json - accepts any structure
+  2. Missing audit fields: No updated_at, no soft delete support
+  3. Documentation references non-existent form_fields table - outdated from monorepo
+
+  Security Gaps:
+
+  1. API keys hardcoded in .env.local (gitignored but exposed)
+  2. No input validation with Zod on API routes
+  3. No CORS configuration
+  4. Potential file upload vulnerability (need to verify /api/public/upload)
+
+  ---
+  ✅ STRENGTHS
+
+  1. Clean folder organization: Domain-driven structure (modules/forms, modules/submissions)
+  2. Modern tech stack: Next.js 15 App Router, React 19, TanStack Query
+  3. Smart caching strategy: Double layer (server in-memory + React Query)
+  4. Excellent documentation: 12 well-structured markdown files in /docs
+  5. Accessibility: Radix UI primitives ensure WCAG compliance
+  6. Row Level Security: Properly enabled on all tables
+
+  ---
+  📊 Component Scorecard
+
+  | Area          | Grade | Key Issue                     |
+  |---------------|-------|-------------------------------|
+  | Architecture  | B+    | Missing Worker layer          |
+  | Code Quality  | C+    | Build errors ignored          |
+  | Security      | B     | No rate limiting, auth issues |
+  | Testing       | F     | Zero coverage                 |
+  | Documentation | A-    | Slightly outdated             |
+  | Database      | B+    | Missing constraints           |
+  | Performance   | C+    | Sync AI calls block users     |
+
+  ---
+  🎯 Action Plan (Priority Order)
+
+  Week 1: Critical Fixes
+
+  1. Enable TypeScript checking - Remove ignoreBuildErrors, fix all type errors
+  2. Add rate limiting - Middleware on /api/ai/* routes
+  3. Fix authentication - Use Supabase getSession() properly
+  4. Add Zod validation - All API route inputs
+
+  Week 2: Quality & Testing
+
+  5. Write integration tests - Form creation → submission flow
+  6. Add error boundaries - Graceful failure handling
+  7. Implement proper error handling - Replace empty catch blocks
+  8. Database constraints - JSON schema validation
+
+  Week 3: Architecture
+
+  9. Background jobs - Move AI processing to async workers
+  10. Monitoring - Add Sentry or similar
+  11. Update documentation - Sync with current implementation
+  12. Code splitting - Lazy load Recharts, Framer Motion
+
+  ---
+  🚨 Git History Red Flags
+
+  Recent commits show rushed development:
+  256a009 "please wokr"    [typo in message]
+  41fbd26 "Bullshit"       [unprofessional]
+  65fd5e8 "Fix production build errors: ...ignore lint/type errors"
+
+  The migration from monorepo (commit 7cabb14) appears to have introduced technical debt.
+
+  ---
+  Final Verdict
+
+  You have a solid architectural foundation but took dangerous shortcuts to ship. The Service-SQL separation is well-designed, the component organization is clean, and the tech choices are modern. However:
+
+  - Cannot recommend production deployment in current state
+  - The disabled type checking is a ticking time bomb
+  - Authentication vulnerabilities could leak user data
+  - No tests means no confidence in changes
+
+  Estimated hardening time: 2-3 weeks to address critical issues before production launch.
+
+  Would you like me to help fix any of these issues? I'd recommend starting with re-enabling TypeScript checking and fixing the build errors.

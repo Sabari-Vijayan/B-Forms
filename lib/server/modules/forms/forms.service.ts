@@ -217,25 +217,31 @@ export const FormsService = {
     });
     if (error) throw error;
 
-    // 2. Generate translations in the background (or sequentially for now for reliability)
+    // 2. Generate translations in the background
     const supportedLangs = languages.filter(l => l !== form.original_language);
     if (supportedLangs.length > 0) {
-      const { FormsGenerator } = await import("./forms.generator");
-      
-      for (const lang of supportedLangs) {
+      // Execute as a detached promise to avoid blocking the main thread
+      (async () => {
         try {
-          const translationsJson = await FormsGenerator.translateForm(
-            form.title,
-            form.description,
-            form.document_json.items || [],
-            lang,
-            form.original_language
-          );
-          await FormsSql.saveTranslation(id, lang, translationsJson);
+          const { FormsGenerator } = await import("./forms.generator");
+          for (const lang of supportedLangs) {
+            try {
+              const translationsJson = await FormsGenerator.translateForm(
+                form.title,
+                form.description,
+                form.document_json.items || [],
+                lang,
+                form.original_language
+              );
+              await FormsSql.saveTranslation(id, lang, translationsJson);
+            } catch (err) {
+              console.error(`Failed to generate translation for ${lang}:`, err);
+            }
+          }
         } catch (err) {
-          console.error(`Failed to generate translation for ${lang}:`, err);
+          console.error("Translation worker encountered a critical error:", err);
         }
-      }
+      })();
     }
     
     invalidateCache(userId, id);

@@ -1,8 +1,8 @@
 "use client";
 
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { useGetMe, useUpdateMe } from "@/hooks/use-auth";
-import { User, Mail, Shield, Loader2 } from "lucide-react";
+import { useGetMe, useUpdateMe, useLogout } from "@/hooks/use-auth";
+import { User, Mail, Shield, Loader2, LogOut } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import { toast } from "sonner";
 export default function ProfilePage() {
   const { data: user } = useGetMe();
   const updateMe = useUpdateMe();
+  const logout = useLogout();
   const [newPassword, setNewPassword] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -43,11 +44,26 @@ export default function ProfilePage() {
   return (
     <DashboardLayout>
       <div className="space-y-8">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Profile Settings</h1>
-          <p className="text-muted-foreground mt-1">
-            Manage your account settings and profile details.
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-semibold tracking-tight">Profile Settings</h1>
+            <p className="text-muted-foreground mt-1">
+              Manage your account settings and profile details.
+            </p>
+          </div>
+          <Button 
+            variant="outline" 
+            onClick={() => logout.mutate()}
+            disabled={logout.isPending}
+            className="flex items-center gap-2"
+          >
+            {logout.isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <LogOut className="w-4 h-4" />
+            )}
+            Log Out
+          </Button>
         </div>
 
         <div className="grid gap-6">

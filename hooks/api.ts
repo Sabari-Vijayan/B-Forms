@@ -149,12 +149,13 @@ export function useGenerateForm() {
   });
 }
 
-export function useGetPublicForm(slug: string) {
+export function useGetPublicForm(slug: string, refetchInterval?: number | false) {
   return useQuery({
     queryKey: ["/api/public/forms", slug],
     queryFn: () => customFetch<Form>(`/api/public/forms/${slug}`),
     enabled: !!slug,
     staleTime: DEFAULT_STALE_TIME,
+    refetchInterval,
   });
 }
 
